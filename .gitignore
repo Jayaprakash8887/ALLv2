@@ -1,0 +1,12 @@
+.env
+data
+input_data
+venv/
+alloenv/
+.DS_Store
+.idea/
+__pycache__/
+.pytest_cache
+gcp_credentials.json
+sample.env
+extraction.py
