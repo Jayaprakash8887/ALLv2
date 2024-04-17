@@ -9,19 +9,19 @@ from config_util import get_config_value
 from utils import *
 
 asr_mapping = {
-    "bn": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4",
+    "bn": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4",
     "en": "ai4bharat/whisper--gpu-t4",
-    "gu": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4",
-    "hi": "ai4bharat/conformer-hi-gpu--t4",
+    "gu": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4",
+    "hi": "ai4bharat/conformer-hi--gpu-t4",
     "kn": "ai4bharat/conformer-multilingual-dravidian--gpu-t4",
     "ml": "ai4bharat/conformer-multilingual-dravidian--gpu-t4",
-    "mr": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4",
-    "or": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4",
-    "pa": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4",
-    "sa": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4",
+    "mr": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4",
+    "or": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4",
+    "pa": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4",
+    "sa": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4",
     "ta": "ai4bharat/conformer-multilingual-dravidian--gpu-t4",
     "te": "ai4bharat/conformer-multilingual-dravidian--gpu-t4",
-    "ur": "ai4bharat/conformer-multilingual-indo_aryan-gpu--t4"
+    "ur": "ai4bharat/conformer-multilingual-indo-aryan--gpu-t4"
 }
 
 tts_mapping = {
