@@ -113,9 +113,13 @@ class ConversationRequest(BaseModel):
     user_audio_msg: str = None
 
 
-class ConversationResponse(BaseModel):
+class BotResponse(BaseModel):
     audio: str = None
     state: int = None
+
+
+class ConversationResponse(BaseModel):
+    conversation: BotResponse = None
 
 
 class ContentResponse(BaseModel):
@@ -269,7 +273,7 @@ async def welcome_conversation_start(request: ConversationStartRequest) -> Conve
     validate_user(user_virtual_id)
     conversation_language = retrieve_data(user_virtual_id + "_conversation_language")
     return_welcome_msg = welcome_msg[conversation_language]
-    return ConversationResponse(audio=return_welcome_msg, state=0)
+    return ConversationResponse(conversation=BotResponse(audio=return_welcome_msg, state=0))
 
 
 @app.post("/v1/welcome_next", include_in_schema=True)
@@ -293,7 +297,7 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
         return_welcome_intent_msg = welcome_other_resp_msg[user_conversation_language]
 
     logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_welcome_intent_msg": return_welcome_intent_msg})
-    return ConversationResponse(audio=return_welcome_intent_msg, state=0)
+    return ConversationResponse(conversation=BotResponse(audio=return_welcome_intent_msg, state=0))
 
 
 @app.post("/v1/learning_start", include_in_schema=True)
@@ -324,7 +328,7 @@ async def feedback_conversation_start(request: ConversationStartRequest) -> Conv
     validate_user(user_virtual_id)
     conversation_language = retrieve_data(user_virtual_id + "_conversation_language")
     get_user_feedback_message = get_user_feedback_msg[conversation_language]
-    return ConversationResponse(audio=get_user_feedback_message, state=0)
+    return ConversationResponse(conversation=BotResponse(audio=get_user_feedback_message, state=0))
 
 
 @app.post("/v1/feedback_next", include_in_schema=True)
@@ -348,7 +352,7 @@ async def feedback_conversation_next(request: ConversationRequest) -> Conversati
         return_feedback_intent_msg = feedback_other_resp_msg[user_conversation_language]
 
     logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_feedback_intent_msg": return_feedback_intent_msg})
-    return ConversationResponse(audio=return_feedback_intent_msg, state=0)
+    return ConversationResponse(conversation=BotResponse(audio=return_feedback_intent_msg, state=0))
 
 
 @app.post("/v1/conclusion", include_in_schema=True)
@@ -363,7 +367,7 @@ async def conclude_session(request: ConversationStartRequest) -> ConversationRes
     # TODO : clear user session learning data
 
     conclusion_message = conclusion_msg[conversation_language]
-    return ConversationResponse(audio=conclusion_message, state=0)
+    return ConversationResponse(conversation=BotResponse(audio=conclusion_message, state=0))
 
 
 def generate_sub_session_id(length=24):
