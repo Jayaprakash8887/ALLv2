@@ -20,7 +20,12 @@ feedback_msg_classifier_prompt = get_config_value("llm", "feedback_msg_classifie
 
 learner_ai_base_url = get_config_value('learning', 'learner_ai_base_url', None)
 generate_virtual_id_api = get_config_value('learning', 'generate_virtual_id_api', None)
+get_milestone_api = get_config_value('learning', 'get_milestone_api', None)
+get_learner_profile_api = get_config_value('learning', 'get_user_progress_api', None)
+update_learner_profile_api = get_config_value('learning', 'update_learner_profile', None)
 get_assessment_api = get_config_value('learning', 'get_assessment_api', None)
+get_practice_showcase_contents_api = get_config_value('learning', 'get_practice_showcase_contents_api', None)
+get_result_api = get_config_value('learning', 'get_result_api', None)
 
 llm_client = openai.OpenAI()
 
@@ -55,14 +60,14 @@ learning_language_list = get_config_value('learning', 'learn_language', None)
 if learning_language_list is None:
     raise HTTPException(status_code=422, detail="learn_language not configured!")
 
-welcome_msg = json.loads(get_config_value("response_messages", "welcome_message", None))
-welcome_greeting_resp_msg = json.loads(get_config_value("response_messages", "welcome_greeting_response_message", None))
-welcome_other_resp_msg = json.loads(get_config_value("response_messages", "welcome_other_response_message", None))
-get_user_feedback_msg = json.loads(get_config_value("response_messages", "get_user_feedback_message", None))
-feedback_positive_resp_msg = json.loads(get_config_value("response_messages", "feedback_positive_response_message", None))
-feedback_other_resp_msg = json.loads(get_config_value("response_messages", "feedback_other_response_message", None))
-conclusion_msg = json.loads(get_config_value("response_messages", "conclusion_message", None))
-discovery_start_msg = json.loads(get_config_value("response_messages", "discovery_start_message", None))
+welcome_msg = json.loads(get_config_value("conversation_messages", "welcome_message", None))
+welcome_greeting_resp_msg = json.loads(get_config_value("conversation_messages", "welcome_greeting_response_message", None))
+welcome_other_resp_msg = json.loads(get_config_value("conversation_messages", "welcome_other_response_message", None))
+get_user_feedback_msg = json.loads(get_config_value("conversation_messages", "get_user_feedback_message", None))
+feedback_positive_resp_msg = json.loads(get_config_value("conversation_messages", "feedback_positive_response_message", None))
+feedback_other_resp_msg = json.loads(get_config_value("conversation_messages", "feedback_other_response_message", None))
+conclusion_msg = json.loads(get_config_value("conversation_messages", "conclusion_message", None))
+discovery_start_msg = json.loads(get_config_value("conversation_messages", "discovery_start_message", None))
 
 
 # Define a function to store and retrieve data in Redis
@@ -126,6 +131,8 @@ class ContentResponse(BaseModel):
     audio: str = None
     text: str = None
     content_id: str = None
+    milestone: str = None
+    milestone_level: str = None
 
 
 class LearningStartRequest(BaseModel):
@@ -258,12 +265,35 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     store_data(user_virtual_id + "_learning_language", learning_language)
     store_data(user_virtual_id + "_conversation_language", conversation_language)
 
+    # Get milestone of the user
+    user_milestone_level_resp = requests.request("GET", learner_ai_base_url + get_milestone_api + user_virtual_id, params={"language": learning_language})
+    # {status: "success", data: {milestone_level: "m1"}}
+    if user_milestone_level_resp.status_code != 200:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User milestone level retrieval failed!")
+
+    user_milestone_level = json.loads(user_milestone_level_resp.text)["data"]["milestone_level"]
+    store_data(user_virtual_id + "_" + learning_language + "_milestone_level", user_milestone_level)
+
+    # Get Lesson Progress of the user
+    user_progress_resp = requests.request("GET", learner_ai_base_url + get_learner_profile_api + user_virtual_id, params={"language": learning_language})
+    if user_progress_resp.status_code != 200:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User lesson progress retrieval failed!")
+
+    try:
+        user_progress = json.loads(user_progress_resp.text)["result"]["result"]
+        store_data(user_virtual_id + "_" + learning_language + "_learning_phase", user_progress["milestone"])
+        store_data(user_virtual_id + "_" + learning_language + "_session", user_progress["sessionId"])
+    except Exception as e:
+        logger.error({"user_virtual_id": user_virtual_id, "error": e})
+        store_data(user_virtual_id + "_" + learning_language + "_learning_phase", "discovery")
+
     current_session_id = retrieve_data(user_virtual_id + "_" + learning_language + "_session")
     if current_session_id is None:
         milliseconds = round(time.time() * 1000)
         current_session_id = user_virtual_id + str(milliseconds)
+        store_data(user_virtual_id + "_" + learning_language + "_session", current_session_id)
     logger.info({"user_virtual_id": user_virtual_id, "current_session_id": current_session_id})
-    store_data(user_virtual_id + "_" + learning_language + "_session", current_session_id)
+
     return LoginResponse(user_virtual_id=user_virtual_id, session_id=current_session_id)
 
 
@@ -304,6 +334,21 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
 async def learning_conversation_start(request: LearningStartRequest) -> LearningResponse:
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
+
+    # Based on the phase get the collection to be displayed
+    user_milestone_level = retrieve_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
+    user_learning_phase = retrieve_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
+
+    if user_learning_phase == "discovery":
+        content_response = get_discovery_content(user_milestone_level, user_virtual_id, user_learning_language, user_session_id)
+    elif user_learning_phase == "practice" or user_learning_phase == "showcase":
+        content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid learning phase!")
+
+    # Get the content from the collection to display
+    # Return content information and conversation message
+
     discovery_start_message = discovery_start_msg[user_conversation_language]
     conversation_response = BotResponse(audio=discovery_start_message, state=0)
     content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
