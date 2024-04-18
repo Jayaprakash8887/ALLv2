@@ -243,7 +243,7 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     store_data(user_id + "_learning_language", learning_language)
     store_data(user_id + "_conversation_language", conversation_language)
 
-    user_virtual_id_resp = requests.request("GET", learner_ai_base_url + generate_virtual_id_api, params={"user_id": user_id, "password": password})
+    user_virtual_id_resp = requests.request("GET", learner_ai_base_url + generate_virtual_id_api, params={"username": user_id, "password": password})
     if user_virtual_id_resp.status_code != 200:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User virtual id generation failed!")
 
