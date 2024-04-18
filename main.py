@@ -305,7 +305,7 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     discovery_start_message = discovery_start_msg[user_conversation_language]
-    conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
+    conversation_response = BotResponse(audio=discovery_start_message, state=0)
     content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
 
     return LearningResponse(conversation=conversation_response, content=content_response)
@@ -316,7 +316,7 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     discovery_start_message = discovery_start_msg[user_conversation_language]
-    conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
+    conversation_response = BotResponse(audio=discovery_start_message, state=0)
     content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
 
     return LearningResponse(conversation=conversation_response, content=content_response)
