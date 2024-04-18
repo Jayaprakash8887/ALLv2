@@ -124,7 +124,11 @@ class ContentResponse(BaseModel):
     content_id: str = None
 
 
-class LearningRequest(BaseModel):
+class LearningStartRequest(BaseModel):
+    user_virtual_id: str = None
+
+
+class LearningNextRequest(BaseModel):
     user_virtual_id: str = None
     user_audio_msg: str = None
     content_id: str = None
@@ -293,7 +297,7 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
 
 
 @app.post("/v1/learning_start", include_in_schema=True)
-async def learning_conversation_start(request: LearningRequest) -> LearningResponse:
+async def learning_conversation_start(request: LearningStartRequest) -> LearningResponse:
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     discovery_start_message = discovery_start_msg[user_conversation_language]
@@ -304,7 +308,7 @@ async def learning_conversation_start(request: LearningRequest) -> LearningRespo
 
 
 @app.post("/v1/learning_next", include_in_schema=True)
-async def learning_conversation_next(request: LearningRequest) -> LearningResponse:
+async def learning_conversation_next(request: LearningNextRequest) -> LearningResponse:
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     discovery_start_message = discovery_start_msg[user_conversation_language]
