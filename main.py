@@ -240,19 +240,19 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     if learning_language is None or learning_language == "" or learning_language not in learning_language_list:
         raise HTTPException(status_code=422, detail="Unsupported learning language code entered!")
 
-    store_data(user_id + "_learning_language", learning_language)
-    store_data(user_id + "_conversation_language", conversation_language)
-
     user_virtual_id_resp = requests.request("GET", learner_ai_base_url + generate_virtual_id_api, params={"username": user_id, "password": password})
     if user_virtual_id_resp.status_code != 200:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User virtual id generation failed!")
 
-    user_virtual_id = json.loads(user_virtual_id_resp.text)["virtualID"]
+    user_virtual_id = str(json.loads(user_virtual_id_resp.text)["virtualID"])
+    store_data(user_virtual_id, user_id)
+    store_data(user_virtual_id + "_learning_language", learning_language)
+    store_data(user_virtual_id + "_conversation_language", conversation_language)
 
-    current_session_id = retrieve_data(user_id + "_" + learning_language + "_session")
+    current_session_id = retrieve_data(user_virtual_id + "_" + learning_language + "_session")
     if current_session_id is None:
         milliseconds = round(time.time() * 1000)
-        current_session_id = str(user_id) + str(milliseconds)
+        current_session_id = user_virtual_id + str(milliseconds)
     logger.info({"user_virtual_id": user_virtual_id, "current_session_id": current_session_id})
     store_data(user_virtual_id + "_" + learning_language + "_session", current_session_id)
     return LoginResponse(user_virtual_id=user_virtual_id, session_id=current_session_id)
@@ -269,25 +269,25 @@ async def welcome_conversation_start(request: ConversationStartRequest) -> Conve
 
 @app.post("/v1/welcome_next", include_in_schema=True)
 async def welcome_conversation_next(request: ConversationRequest) -> ConversationResponse:
-    user_id = request.user_virtual_id
-    user_session_id, user_learning_language, user_conversation_language = validate_user(user_id)
+    user_virtual_id = request.user_virtual_id
+    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     audio = request.user_audio_msg
     if not is_url(audio) and not is_base64(audio):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid audio input!")
 
     user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
-    logger.info({"user_id": user_id, "audio_converted_eng_text:": user_statement})
+    logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
     # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotions_classifier(user_id, user_statement, user_session_id, user_learning_language)
+    emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
     # classify welcome_user_resp intent into 'greeting' and 'other'
-    user_intent = invoke_llm(user_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
+    user_intent = invoke_llm(user_virtual_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
     # Based on the intent, return response
     if user_intent == "greeting":
         return_welcome_intent_msg = welcome_greeting_resp_msg[user_conversation_language]
     else:
         return_welcome_intent_msg = welcome_other_resp_msg[user_conversation_language]
 
-    logger.info({"user_id": user_id, "x_session_id": user_session_id, "return_welcome_intent_msg": return_welcome_intent_msg})
+    logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_welcome_intent_msg": return_welcome_intent_msg})
     return ConversationResponse(audio=return_welcome_intent_msg, state=0)
 
 
@@ -302,25 +302,25 @@ async def feedback_conversation_start(request: ConversationStartRequest) -> Conv
 
 @app.post("/v1/feedback_next", include_in_schema=True)
 async def feedback_conversation_next(request: ConversationRequest) -> ConversationResponse:
-    user_id = request.user_virtual_id
-    user_session_id, user_learning_language, user_conversation_language = validate_user(user_id)
+    user_virtual_id = request.user_virtual_id
+    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     audio = request.user_audio_msg
     if not is_url(audio) and not is_base64(audio):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid audio input!")
 
     user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
-    logger.info({"user_id": user_id, "audio_converted_eng_text:": user_statement})
+    logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
     # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotions_classifier(user_id, user_statement, user_session_id, user_learning_language)
+    emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
     # classify welcome_user_resp intent into 'greeting' and 'other'
-    user_intent = invoke_llm(user_id, user_statement, feedback_msg_classifier_prompt, user_session_id, user_learning_language)
+    user_intent = invoke_llm(user_virtual_id, user_statement, feedback_msg_classifier_prompt, user_session_id, user_learning_language)
     # Based on the intent, return response
     if user_intent == "positive":
         return_feedback_intent_msg = feedback_positive_resp_msg[user_conversation_language]
     else:
         return_feedback_intent_msg = feedback_other_resp_msg[user_conversation_language]
 
-    logger.info({"user_id": user_id, "x_session_id": user_session_id, "return_feedback_intent_msg": return_feedback_intent_msg})
+    logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_feedback_intent_msg": return_feedback_intent_msg})
     return ConversationResponse(audio=return_feedback_intent_msg, state=0)
 
 
@@ -341,8 +341,8 @@ async def conclude_session(request: ConversationStartRequest) -> ConversationRes
 
 @app.post("/v1/learning_start", include_in_schema=True)
 async def learning_conversation_start(request: LearningRequest) -> LearningResponse:
-    user_id = request.user_virtual_id
-    user_session_id, user_learning_language, user_conversation_language = validate_user(user_id)
+    user_virtual_id = request.user_virtual_id
+    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     discovery_start_message = discovery_start_msg[user_conversation_language]
     conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
     content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
@@ -352,8 +352,8 @@ async def learning_conversation_start(request: LearningRequest) -> LearningRespo
 
 @app.post("/v1/learning_next", include_in_schema=True)
 async def learning_conversation_next(request: LearningRequest) -> LearningResponse:
-    user_id = request.user_virtual_id
-    user_session_id, user_learning_language, user_conversation_language = validate_user(user_id)
+    user_virtual_id = request.user_virtual_id
+    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     discovery_start_message = discovery_start_msg[user_conversation_language]
     conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
     content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
@@ -371,8 +371,8 @@ def generate_sub_session_id(length=24):
     return sub_session_id
 
 
-def get_discovery_content(user_milestone_level, user_id, language, session_id) -> ContentResponse:
-    stored_user_assessment_collections: str = retrieve_data(user_id + "_" + language + "_" + user_milestone_level + "_collections")
+def get_discovery_content(user_milestone_level, user_virtual_id, language, session_id) -> ContentResponse:
+    stored_user_assessment_collections: str = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections")
     headers = {
         'Content-Type': 'application/json'
     }
@@ -380,7 +380,7 @@ def get_discovery_content(user_milestone_level, user_id, language, session_id) -
     if stored_user_assessment_collections:
         user_assessment_collections = json.loads(stored_user_assessment_collections)
 
-    logger.info({"user_id": user_id, "Redis user_assessment_collections": user_assessment_collections})
+    logger.info({"user_virtual_id": user_virtual_id, "Redis user_assessment_collections": user_assessment_collections})
 
     learning_language = get_config_value('request', 'learn_language', None)
 
@@ -389,10 +389,10 @@ def get_discovery_content(user_milestone_level, user_id, language, session_id) -
         payload = {"tags": ["ASER"], "language": learning_language}
 
         get_assessment_response = requests.request("POST", get_assessment_api, headers=headers, data=json.dumps(payload))
-        logger.info({"user_id": user_id, "get_assessment_response": get_assessment_response})
+        logger.info({"user_virtual_id": user_virtual_id, "get_assessment_response": get_assessment_response})
 
         assessment_data = get_assessment_response.json()["data"]
-        logger.info({"user_id": user_id, "assessment_data": assessment_data})
+        logger.info({"user_virtual_id": user_virtual_id, "assessment_data": assessment_data})
         for collection in assessment_data:
             if collection["category"] == "Sentence" or collection["category"] == "Word":
                 if user_assessment_collections is None:
@@ -402,13 +402,13 @@ def get_discovery_content(user_milestone_level, user_id, language, session_id) -
                 elif collection["category"] in user_assessment_collections.keys() and user_milestone_level in collection["tags"]:
                     user_assessment_collections.update({collection["category"]: collection})
 
-        logger.info({"user_id": user_id, "user_assessment_collections": json.dumps(user_assessment_collections)})
-        store_data(user_id + "_" + language + "_" + user_milestone_level + "_collections", json.dumps(user_assessment_collections))
+        logger.info({"user_virtual_id": user_virtual_id, "user_assessment_collections": json.dumps(user_assessment_collections)})
+        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections", json.dumps(user_assessment_collections))
 
-    completed_collections = retrieve_data(user_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
-    logger.info({"user_id": user_id, "completed_collections": completed_collections})
-    in_progress_collection = retrieve_data(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
-    logger.info({"user_id": user_id, "in_progress_collection": in_progress_collection})
+    completed_collections = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
+    logger.info({"user_virtual_id": user_virtual_id, "completed_collections": completed_collections})
+    in_progress_collection = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
+    logger.info({"user_virtual_id": user_virtual_id, "in_progress_collection": in_progress_collection})
 
     if completed_collections and in_progress_collection and in_progress_collection in json.loads(completed_collections):
         in_progress_collection = None
@@ -423,29 +423,29 @@ def get_discovery_content(user_milestone_level, user_id, language, session_id) -
     if in_progress_collection:
         for collection_value in user_assessment_collections.values():
             if collection_value.get("collectionId") == in_progress_collection:
-                logger.debug({"user_id": user_id, "setting_current_collection_using_in_progress_collection": collection_value})
+                logger.debug({"user_virtual_id": user_virtual_id, "setting_current_collection_using_in_progress_collection": collection_value})
                 current_collection = collection_value
     elif len(user_assessment_collections.values()) > 0:
         current_collection = list(user_assessment_collections.values())[0]
-        logger.debug({"user_id": user_id, "setting_current_collection_using_assessment_collections": current_collection})
-        store_data(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
-        store_data(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category", current_collection.get("category"))
+        logger.debug({"user_virtual_id": user_virtual_id, "setting_current_collection_using_assessment_collections": current_collection})
+        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
+        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category", current_collection.get("category"))
     else:
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_collections")
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category")
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_session")
-        # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_sub_session")
-        store_data(user_id + "_" + language + "_" + session_id + "_completed", "true")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_session")
+        # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_sub_session")
+        store_data(user_virtual_id + "_" + language + "_" + session_id + "_completed", "true")
         output = ContentResponse(audio="completed", text="completed")
         return output
 
-    logger.info({"user_id": user_id, "current_collection": current_collection})
+    logger.info({"user_virtual_id": user_virtual_id, "current_collection": current_collection})
 
-    completed_contents = retrieve_data(user_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
-    logger.debug({"user_id": user_id, "completed_contents": completed_contents})
+    completed_contents = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
+    logger.debug({"user_virtual_id": user_virtual_id, "completed_contents": completed_contents})
     if completed_contents:
         completed_contents = json.loads(completed_contents)
         for content_id in completed_contents:
@@ -453,48 +453,48 @@ def get_discovery_content(user_milestone_level, user_id, language, session_id) -
                 if content.get("contentId") == content_id:
                     current_collection.get("content").remove(content)
 
-    logger.info({"user_id": user_id, "updated_current_collection": current_collection})
+    logger.info({"user_virtual_id": user_virtual_id, "updated_current_collection": current_collection})
 
     if "content" not in current_collection.keys() or len(current_collection.get("content")) == 0:
         if completed_collections:
             completed_collections.append(current_collection.get("collectionId"))
         else:
             completed_collections = [current_collection.get("collectionId")]
-        store_data(user_id + "_" + language + "_" + user_milestone_level + "_completed_collections", json.dumps(completed_collections))
+        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections", json.dumps(completed_collections))
         user_assessment_collections = {key: val for key, val in user_assessment_collections.items() if val.get("collectionId") != current_collection.get("collectionId")}
 
-        logger.info({"user_id": user_id, "completed_collection_id": current_collection.get("collectionId"), "after_removing_completed_collection_user_assessment_collections": user_assessment_collections})
+        logger.info({"user_virtual_id": user_virtual_id, "completed_collection_id": current_collection.get("collectionId"), "after_removing_completed_collection_user_assessment_collections": user_assessment_collections})
 
         add_lesson_api = get_config_value('learning', 'add_lesson_api', None)
-        add_lesson_payload = {"userId": user_id, "sessionId": session_id, "milestone": "discoverylist/discovery/" + current_collection.get("collectionId"), "lesson": current_collection.get("name"), "progress": 100,
+        add_lesson_payload = {"userId": user_virtual_id, "sessionId": session_id, "milestone": "discoverylist/discovery/" + current_collection.get("collectionId"), "lesson": current_collection.get("name"), "progress": 100,
                               "milestoneLevel": user_milestone_level, "language": learning_language}
         add_lesson_response = requests.request("POST", add_lesson_api, headers=headers, data=json.dumps(add_lesson_payload))
-        logger.info({"user_id": user_id, "add_lesson_response": add_lesson_response})
+        logger.info({"user_virtual_id": user_virtual_id, "add_lesson_response": add_lesson_response})
 
         if len(user_assessment_collections) != 0:
             current_collection = list(user_assessment_collections.values())[0]
-            logger.info({"user_id": user_id, "current_collection": current_collection})
-            store_data(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
+            logger.info({"user_virtual_id": user_virtual_id, "current_collection": current_collection})
+            store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
         else:
             # get_result_api = get_config_value('learning', 'get_result_api', None)
-            # get_result_payload = {"sub_session_id": sub_session_id, "contentType": current_collection.get("category"), "session_id": session_id, "user_id": user_id, "collectionId": current_collection.get("collectionId"), "language": language}
+            # get_result_payload = {"sub_session_id": sub_session_id, "contentType": current_collection.get("category"), "session_id": session_id, "user_virtual_id": user_virtual_id, "collectionId": current_collection.get("collectionId"), "language": language}
             # get_result_response = requests.request("POST", get_result_api, headers=headers, data=json.dumps(get_result_payload))
-            # logger.info({"user_id": user_id, "get_result_response": get_result_response})
+            # logger.info({"user_virtual_id": user_virtual_id, "get_result_response": get_result_response})
             # percentage = get_result_response.json()["data"]["percentage"]
             #
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_collections")
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category")
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_session")
-            # redis_client.delete(user_id + "_" + language + "_" + user_milestone_level + "_sub_session")
-            store_data(user_id + "_" + language + "_" + session_id + "_completed", "true")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_session")
+            # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_sub_session")
+            store_data(user_virtual_id + "_" + language + "_" + session_id + "_completed", "true")
             output = ContentResponse(audio="completed", text="completed")
             return output
 
     content_source_data = current_collection.get("content")[0].get("contentSourceData")[0]
-    logger.debug({"user_id": user_id, "content_source_data": content_source_data})
+    logger.debug({"user_virtual_id": user_virtual_id, "content_source_data": content_source_data})
     content_id = current_collection.get("content")[0].get("contentId")
     audio_url = "https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/" + content_id + ".wav"
 
@@ -502,33 +502,33 @@ def get_discovery_content(user_milestone_level, user_id, language, session_id) -
     return output
 
 
-def get_showcase_content(user_id, language, current_session_id) -> ContentResponse:
+def get_showcase_content(user_virtual_id, language, current_session_id) -> ContentResponse:
     current_content = None
-    stored_user_showcase_contents: str = retrieve_data(user_id + "_" + language + "_showcase_contents")
+    stored_user_showcase_contents: str = retrieve_data(user_virtual_id + "_" + language + "_showcase_contents")
     user_showcase_contents = []
     if stored_user_showcase_contents:
         user_showcase_contents = json.loads(stored_user_showcase_contents)
 
-    logger.info({"user_id": user_id, "Redis stored_user_showcase_contents": stored_user_showcase_contents})
+    logger.info({"user_virtual_id": user_virtual_id, "Redis stored_user_showcase_contents": stored_user_showcase_contents})
 
     learning_language = get_config_value('request', 'learn_language', None)
 
     if stored_user_showcase_contents is None:
-        get_showcase_contents_api = get_config_value('learning', 'get_showcase_contents_api', None) + user_id
+        get_showcase_contents_api = get_config_value('learning', 'get_showcase_contents_api', None) + user_virtual_id
         content_limit = int(get_config_value('request', 'content_limit', None))
         target_limit = int(get_config_value('request', 'target_limit', None))
         # defining a params dict for the parameters to be sent to the API
         params = {'language': learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
         # sending get request and saving the response as response object
-        showcase_contents_response = requests.get(url=get_showcase_contents_api + user_id, params=params)
+        showcase_contents_response = requests.get(url=get_showcase_contents_api + user_virtual_id, params=params)
         user_showcase_contents = showcase_contents_response.json()["content"]
-        logger.info({"user_id": user_id, "user_showcase_contents": user_showcase_contents})
-        store_data(user_id + "_" + language + "_showcase_contents", json.dumps(user_showcase_contents))
+        logger.info({"user_virtual_id": user_virtual_id, "user_showcase_contents": user_showcase_contents})
+        store_data(user_virtual_id + "_" + language + "_showcase_contents", json.dumps(user_showcase_contents))
 
-    completed_contents = retrieve_data(user_id + "_" + language + "_completed_contents")
-    logger.info({"user_id": user_id, "completed_contents": completed_contents})
-    in_progress_content = retrieve_data(user_id + "_" + language + "_progress_content")
-    logger.info({"user_id": user_id, "progress_content": in_progress_content})
+    completed_contents = retrieve_data(user_virtual_id + "_" + language + "_completed_contents")
+    logger.info({"user_virtual_id": user_virtual_id, "completed_contents": completed_contents})
+    in_progress_content = retrieve_data(user_virtual_id + "_" + language + "_progress_content")
+    logger.info({"user_virtual_id": user_virtual_id, "progress_content": in_progress_content})
 
     if completed_contents and in_progress_content and in_progress_content in json.loads(completed_contents):
         in_progress_content = None
@@ -542,24 +542,24 @@ def get_showcase_content(user_id, language, current_session_id) -> ContentRespon
 
     if in_progress_content is None and len(user_showcase_contents) > 0:
         current_content = user_showcase_contents[0]
-        store_data(user_id + "_" + language + "_progress_content", current_content.get("contentId"))
+        store_data(user_virtual_id + "_" + language + "_progress_content", current_content.get("contentId"))
     elif in_progress_content is not None and len(user_showcase_contents) > 0:
         for showcase_content in user_showcase_contents:
             if showcase_content.get("contentId") == in_progress_content:
                 current_content = showcase_content
     else:
-        # redis_client.delete(user_id + "_" + language + "_contents")
-        # redis_client.delete(user_id + "_" + language + "_progress_content")
-        # redis_client.delete(user_id + "_" + language + "_completed_contents")
-        # redis_client.delete(user_id + "_" + language + "_session")
-        # redis_client.delete(user_id + "_" + language + "_sub_session")
-        store_data(user_id + "_" + language + "_" + current_session_id + "_completed", "true")
+        # redis_client.delete(user_virtual_id + "_" + language + "_contents")
+        # redis_client.delete(user_virtual_id + "_" + language + "_progress_content")
+        # redis_client.delete(user_virtual_id + "_" + language + "_completed_contents")
+        # redis_client.delete(user_virtual_id + "_" + language + "_session")
+        # redis_client.delete(user_virtual_id + "_" + language + "_sub_session")
+        store_data(user_virtual_id + "_" + language + "_" + current_session_id + "_completed", "true")
         output = ContentResponse(audio="completed", text="completed")
         return output
 
-    logger.info({"user_id": user_id, "current_content": current_content})
+    logger.info({"user_virtual_id": user_virtual_id, "current_content": current_content})
     content_source_data = current_content.get("contentSourceData")[0]
-    logger.debug({"user_id": user_id, "content_source_data": content_source_data})
+    logger.debug({"user_virtual_id": user_virtual_id, "content_source_data": content_source_data})
     content_id = current_content.get("contentId")
     audio_url = "https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/" + content_id + ".wav"
 
