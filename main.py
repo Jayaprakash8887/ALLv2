@@ -218,6 +218,7 @@ def validate_user(user_virtual_id: str):
 
     if user_session_id is None or user_learning_language is None or user_conversation_language is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="User session not found!")
+    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_learning_language": user_learning_language, "user_conversation_language": user_conversation_language})
     return user_session_id, user_learning_language, user_conversation_language
 
 
@@ -291,6 +292,28 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
     return ConversationResponse(audio=return_welcome_intent_msg, state=0)
 
 
+@app.post("/v1/learning_start", include_in_schema=True)
+async def learning_conversation_start(request: LearningRequest) -> LearningResponse:
+    user_virtual_id = request.user_virtual_id
+    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
+    discovery_start_message = discovery_start_msg[user_conversation_language]
+    conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
+    content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
+
+    return LearningResponse(conversation=conversation_response, content=content_response)
+
+
+@app.post("/v1/learning_next", include_in_schema=True)
+async def learning_conversation_next(request: LearningRequest) -> LearningResponse:
+    user_virtual_id = request.user_virtual_id
+    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
+    discovery_start_message = discovery_start_msg[user_conversation_language]
+    conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
+    content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
+
+    return LearningResponse(conversation=conversation_response, content=content_response)
+
+
 @app.post("/v1/feedback_start", include_in_schema=True)
 async def feedback_conversation_start(request: ConversationStartRequest) -> ConversationResponse:
     user_virtual_id = request.user_virtual_id
@@ -337,28 +360,6 @@ async def conclude_session(request: ConversationStartRequest) -> ConversationRes
 
     conclusion_message = conclusion_msg[conversation_language]
     return ConversationResponse(audio=conclusion_message, state=0)
-
-
-@app.post("/v1/learning_start", include_in_schema=True)
-async def learning_conversation_start(request: LearningRequest) -> LearningResponse:
-    user_virtual_id = request.user_virtual_id
-    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
-    discovery_start_message = discovery_start_msg[user_conversation_language]
-    conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
-    content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
-
-    return LearningResponse(conversation=conversation_response, content=content_response)
-
-
-@app.post("/v1/learning_next", include_in_schema=True)
-async def learning_conversation_next(request: LearningRequest) -> LearningResponse:
-    user_virtual_id = request.user_virtual_id
-    user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
-    discovery_start_message = discovery_start_msg[user_conversation_language]
-    conversation_response = ConversationResponse(audio=discovery_start_message, state=0)
-    content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
-
-    return LearningResponse(conversation=conversation_response, content=content_response)
 
 
 def generate_sub_session_id(length=24):
