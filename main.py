@@ -140,7 +140,7 @@ class LearningNextRequest(BaseModel):
 
 
 class LearningResponse(BaseModel):
-    conversation: ConversationResponse = None
+    conversation: BotResponse = None
     content: ContentResponse = None
 
 
