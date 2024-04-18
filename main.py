@@ -67,7 +67,9 @@ get_user_feedback_msg = json.loads(get_config_value("conversation_messages", "ge
 feedback_positive_resp_msg = json.loads(get_config_value("conversation_messages", "feedback_positive_response_message", None))
 feedback_other_resp_msg = json.loads(get_config_value("conversation_messages", "feedback_other_response_message", None))
 conclusion_msg = json.loads(get_config_value("conversation_messages", "conclusion_message", None))
-discovery_start_msg = json.loads(get_config_value("conversation_messages", "discovery_start_message", None))
+discovery_start_msg = json.loads(get_config_value("conversation_messages", "discovery_phase_message", None))
+practice_start_msg = json.loads(get_config_value("conversation_messages", "practice_phase_message", None))
+showcase_start_msg = json.loads(get_config_value("conversation_messages", "showcase_phase_message", None))
 
 
 # Define a function to store and retrieve data in Redis
@@ -212,7 +214,7 @@ def emotions_classifier(user_virtual_id: str, user_statement: str, session_id: s
     logger.info({"user_virtual_id": user_virtual_id, "language": language, "session_id": session_id, "user_session_emotions": user_session_emotions})
 
     emotion_category = invoke_llm(user_virtual_id, user_statement, emotion_classifier_prompt, session_id, language)
-
+    logger.info({"emotions_classifier": user_virtual_id, "user_statement": user_statement, "emotion_category": emotion_category, "session_id": session_id, "language": language})
     if user_session_emotions:
         user_session_emotions = json.loads(user_session_emotions)
         user_session_emotions.append(emotion_category)
@@ -335,22 +337,25 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
 
-    # Based on the phase get the collection to be displayed
+    # Based on the phase get the content from the collection to be displayed
     user_milestone_level = retrieve_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
     user_learning_phase = retrieve_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
 
     if user_learning_phase == "discovery":
+        conversation_message = discovery_start_msg[user_conversation_language]
         content_response = get_discovery_content(user_milestone_level, user_virtual_id, user_learning_language, user_session_id)
-    elif user_learning_phase == "practice" or user_learning_phase == "showcase":
+    elif user_learning_phase == "practice":
+        conversation_message = practice_start_msg[user_conversation_language]
+        content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
+    elif user_learning_phase == "showcase":
+        conversation_message = showcase_start_msg[user_conversation_language]
         content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
     else:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid learning phase!")
 
-    # Get the content from the collection to display
     # Return content information and conversation message
 
-    discovery_start_message = discovery_start_msg[user_conversation_language]
-    conversation_response = BotResponse(audio=discovery_start_message, state=0)
+    conversation_response = BotResponse(audio=conversation_message, state=0)
     content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
 
     return LearningResponse(conversation=conversation_response, content=content_response)
@@ -425,8 +430,8 @@ def generate_sub_session_id(length=24):
     return sub_session_id
 
 
-def get_discovery_content(user_milestone_level, user_virtual_id, language, session_id) -> ContentResponse:
-    stored_user_assessment_collections: str = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections")
+def get_discovery_content(user_milestone_level, user_virtual_id, user_learning_language, session_id) -> ContentResponse:
+    stored_user_assessment_collections: str = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_collections")
     headers = {
         'Content-Type': 'application/json'
     }
@@ -457,11 +462,11 @@ def get_discovery_content(user_milestone_level, user_virtual_id, language, sessi
                     user_assessment_collections.update({collection["category"]: collection})
 
         logger.info({"user_virtual_id": user_virtual_id, "user_assessment_collections": json.dumps(user_assessment_collections)})
-        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections", json.dumps(user_assessment_collections))
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_collections", json.dumps(user_assessment_collections))
 
-    completed_collections = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
+    completed_collections = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_completed_collections")
     logger.info({"user_virtual_id": user_virtual_id, "completed_collections": completed_collections})
-    in_progress_collection = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection")
+    in_progress_collection = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_progress_collection")
     logger.info({"user_virtual_id": user_virtual_id, "in_progress_collection": in_progress_collection})
 
     if completed_collections and in_progress_collection and in_progress_collection in json.loads(completed_collections):
@@ -482,8 +487,8 @@ def get_discovery_content(user_milestone_level, user_virtual_id, language, sessi
     elif len(user_assessment_collections.values()) > 0:
         current_collection = list(user_assessment_collections.values())[0]
         logger.debug({"user_virtual_id": user_virtual_id, "setting_current_collection_using_assessment_collections": current_collection})
-        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
-        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection_category", current_collection.get("category"))
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_progress_collection_category", current_collection.get("category"))
     else:
         # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_collections")
         # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections")
@@ -492,13 +497,13 @@ def get_discovery_content(user_milestone_level, user_virtual_id, language, sessi
         # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
         # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_session")
         # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_sub_session")
-        store_data(user_virtual_id + "_" + language + "_" + session_id + "_completed", "true")
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + session_id + "_completed", "true")
         output = ContentResponse(audio="completed", text="completed")
         return output
 
     logger.info({"user_virtual_id": user_virtual_id, "current_collection": current_collection})
 
-    completed_contents = retrieve_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
+    completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_completed_contents")
     logger.debug({"user_virtual_id": user_virtual_id, "completed_contents": completed_contents})
     if completed_contents:
         completed_contents = json.loads(completed_contents)
@@ -514,13 +519,13 @@ def get_discovery_content(user_milestone_level, user_virtual_id, language, sessi
             completed_collections.append(current_collection.get("collectionId"))
         else:
             completed_collections = [current_collection.get("collectionId")]
-        store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_collections", json.dumps(completed_collections))
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_completed_collections", json.dumps(completed_collections))
         user_assessment_collections = {key: val for key, val in user_assessment_collections.items() if val.get("collectionId") != current_collection.get("collectionId")}
 
         logger.info({"user_virtual_id": user_virtual_id, "completed_collection_id": current_collection.get("collectionId"), "after_removing_completed_collection_user_assessment_collections": user_assessment_collections})
 
         add_lesson_api = get_config_value('learning', 'add_lesson_api', None)
-        add_lesson_payload = {"userId": user_virtual_id, "sessionId": session_id, "milestone": "discoverylist/discovery/" + current_collection.get("collectionId"), "lesson": current_collection.get("name"), "progress": 100,
+        add_lesson_payload = {"userId": user_virtual_id, "sessionId": session_id, "milestone": "discovery", "lesson": current_collection.get("name"), "progress": 100,
                               "milestoneLevel": user_milestone_level, "language": learning_language}
         add_lesson_response = requests.request("POST", add_lesson_api, headers=headers, data=json.dumps(add_lesson_payload))
         logger.info({"user_virtual_id": user_virtual_id, "add_lesson_response": add_lesson_response})
@@ -528,7 +533,7 @@ def get_discovery_content(user_milestone_level, user_virtual_id, language, sessi
         if len(user_assessment_collections) != 0:
             current_collection = list(user_assessment_collections.values())[0]
             logger.info({"user_virtual_id": user_virtual_id, "current_collection": current_collection})
-            store_data(user_virtual_id + "_" + language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
+            store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_progress_collection", current_collection.get("collectionId"))
         else:
             # get_result_api = get_config_value('learning', 'get_result_api', None)
             # get_result_payload = {"sub_session_id": sub_session_id, "contentType": current_collection.get("category"), "session_id": session_id, "user_virtual_id": user_virtual_id, "collectionId": current_collection.get("collectionId"), "language": language}
