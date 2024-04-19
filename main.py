@@ -60,12 +60,19 @@ learning_language_list = get_config_value('learning', 'learn_language', None)
 if learning_language_list is None:
     raise HTTPException(status_code=422, detail="learn_language not configured!")
 
+positive_emotions = json.loads(get_config_value("llm", "positive_emotions", None))
+other_emotions = json.loads(get_config_value("llm", "other_emotions", None))
+
 welcome_msg = json.loads(get_config_value("conversation_messages", "welcome_message", None))
-welcome_greeting_resp_msg = json.loads(get_config_value("conversation_messages", "welcome_greeting_response_message", None))
-welcome_other_resp_msg = json.loads(get_config_value("conversation_messages", "welcome_other_response_message", None))
+greeting_positive_resp_msg = json.loads(get_config_value("conversation_messages", "greeting_positive_response_message", None))
+greeting_other_resp_msg = json.loads(get_config_value("conversation_messages", "greeting_other_response_message", None))
+non_greeting_positive_resp_msg = json.loads(get_config_value("conversation_messages", "non_greeting_positive_response_message", None))
+non_greeting_other_resp_msg = json.loads(get_config_value("conversation_messages", "non_greeting_other_response_message", None))
 get_user_feedback_msg = json.loads(get_config_value("conversation_messages", "get_user_feedback_message", None))
 feedback_positive_resp_msg = json.loads(get_config_value("conversation_messages", "feedback_positive_response_message", None))
 feedback_other_resp_msg = json.loads(get_config_value("conversation_messages", "feedback_other_response_message", None))
+non_feedback_positive_resp_msg = json.loads(get_config_value("conversation_messages", "non_feedback_positive_response_message", None))
+non_feedback_other_resp_msg = json.loads(get_config_value("conversation_messages", "non_feedback_other_response_message", None))
 conclusion_msg = json.loads(get_config_value("conversation_messages", "conclusion_message", None))
 discovery_start_msg = json.loads(get_config_value("conversation_messages", "discovery_phase_message", None))
 practice_start_msg = json.loads(get_config_value("conversation_messages", "practice_phase_message", None))
@@ -194,7 +201,7 @@ def get_health() -> HealthCheck:
 
 
 def invoke_llm(user_virtual_id: str, user_statement: str, prompt: str, session_id: str, language: str) -> str:
-    logger.debug({"intent_classifier": "classifier_prompt", "user_virtual_id": user_virtual_id, "language": language, "session_id": session_id, "user_statement": user_statement})
+    logger.info({"intent_classifier": "classifier_prompt", "user_virtual_id": user_virtual_id, "language": language, "session_id": session_id, "user_statement": user_statement})
     res = llm_client.chat.completions.create(
         model=gpt_model,
         messages=[
@@ -214,7 +221,7 @@ def emotions_classifier(user_virtual_id: str, user_statement: str, session_id: s
     logger.info({"user_virtual_id": user_virtual_id, "language": language, "session_id": session_id, "user_session_emotions": user_session_emotions})
 
     emotion_category = invoke_llm(user_virtual_id, user_statement, emotion_classifier_prompt, session_id, language)
-    logger.info({"emotions_classifier": user_virtual_id, "user_statement": user_statement, "emotion_category": emotion_category, "session_id": session_id, "language": language})
+    logger.info({"emotions_classifier": user_virtual_id, "user_statement": user_statement, "emotion_classifier_prompt": emotion_classifier_prompt, "emotion_category": emotion_category, "session_id": session_id, "language": language})
     if user_session_emotions:
         user_session_emotions = json.loads(user_session_emotions)
         user_session_emotions.append(emotion_category)
@@ -223,6 +230,13 @@ def emotions_classifier(user_virtual_id: str, user_statement: str, session_id: s
 
     store_data(user_virtual_id + "_" + language + "_" + session_id + "_emotions", json.dumps(user_session_emotions))
     return emotion_category
+
+
+def emotions_summary(emotion_category: str) -> str:
+    if emotion_category in positive_emotions:
+        return "positive"
+    else:
+        return "other"
 
 
 def validate_user(user_virtual_id: str):
@@ -270,7 +284,9 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     # Get milestone of the user
     user_milestone_level_resp = requests.request("GET", learner_ai_base_url + get_milestone_api + user_virtual_id, params={"language": learning_language})
     # {status: "success", data: {milestone_level: "m1"}}
-    if user_milestone_level_resp.status_code != 200:
+    logger.info("user_milestone_level_resp:: ", user_milestone_level_resp.status_code, " || ", user_milestone_level_resp.text)
+    print(json.loads(user_milestone_level_resp.text)["status"])
+    if user_milestone_level_resp.status_code != 200 and user_milestone_level_resp.status_code != 201:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User milestone level retrieval failed!")
 
     user_milestone_level = json.loads(user_milestone_level_resp.text)["data"]["milestone_level"]
@@ -319,14 +335,19 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
     user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
     logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
     # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
+    emotion_category = emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
+    emotion_summary = emotions_summary(emotion_category)
     # classify welcome_user_resp intent into 'greeting' and 'other'
     user_intent = invoke_llm(user_virtual_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
     # Based on the intent, return response
-    if user_intent == "greeting":
-        return_welcome_intent_msg = welcome_greeting_resp_msg[user_conversation_language]
+    if user_intent == "greeting" and emotion_summary == "positive":
+        return_welcome_intent_msg = greeting_positive_resp_msg[user_conversation_language]
+    elif user_intent == "other" and emotion_summary == "positive":
+        return_welcome_intent_msg = non_greeting_positive_resp_msg[user_conversation_language]
+    if user_intent == "greeting" and emotion_summary == "other":
+        return_welcome_intent_msg = greeting_other_resp_msg[user_conversation_language]
     else:
-        return_welcome_intent_msg = welcome_other_resp_msg[user_conversation_language]
+        return_welcome_intent_msg = non_greeting_other_resp_msg[user_conversation_language]
 
     logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_welcome_intent_msg": return_welcome_intent_msg})
     return ConversationResponse(conversation=BotResponse(audio=return_welcome_intent_msg, state=0))
@@ -392,14 +413,19 @@ async def feedback_conversation_next(request: ConversationRequest) -> Conversati
     user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
     logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
     # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
+    emotion_category = emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
+    emotion_summary = emotions_summary(emotion_category)
     # classify welcome_user_resp intent into 'greeting' and 'other'
     user_intent = invoke_llm(user_virtual_id, user_statement, feedback_msg_classifier_prompt, user_session_id, user_learning_language)
     # Based on the intent, return response
-    if user_intent == "positive":
+    if user_intent == "feedback" and emotion_summary == "positive":
         return_feedback_intent_msg = feedback_positive_resp_msg[user_conversation_language]
-    else:
+    elif user_intent == "feedback" and emotion_summary == "other":
         return_feedback_intent_msg = feedback_other_resp_msg[user_conversation_language]
+    elif user_intent == "other" and emotion_summary == "positive":
+        return_feedback_intent_msg = non_feedback_positive_resp_msg[user_conversation_language]
+    else:
+        return_feedback_intent_msg = non_feedback_other_resp_msg[user_conversation_language]
 
     logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_feedback_intent_msg": return_feedback_intent_msg})
     return ConversationResponse(conversation=BotResponse(audio=return_feedback_intent_msg, state=0))
@@ -548,7 +574,7 @@ def get_discovery_content(user_milestone_level, user_virtual_id, user_learning_l
             # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_completed_contents")
             # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_session")
             # redis_client.delete(user_virtual_id + "_" + language + "_" + user_milestone_level + "_sub_session")
-            store_data(user_virtual_id + "_" + language + "_" + session_id + "_completed", "true")
+            store_data(user_virtual_id + "_" + user_learning_language + "_" + session_id + "_completed", "true")
             output = ContentResponse(audio="completed", text="completed")
             return output
 
