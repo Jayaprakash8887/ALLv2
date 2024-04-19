@@ -61,8 +61,8 @@ learning_language_list = get_config_value('learning', 'learn_language', None)
 if learning_language_list is None:
     raise HTTPException(status_code=422, detail="learn_language not configured!")
 
-positive_emotions = json.loads(get_config_value("learning", "positive_emotions", None))
-other_emotions = json.loads(get_config_value("learning", "other_emotions", None))
+positive_emotions = get_config_value("learning", "positive_emotions", None).split(",")
+other_emotions = get_config_value("learning", "other_emotions", None).split(",")
 
 welcome_msg = json.loads(get_config_value("conversation_messages", "welcome_message", None))
 greeting_positive_resp_msg = json.loads(get_config_value("conversation_messages", "greeting_positive_response_message", None))
