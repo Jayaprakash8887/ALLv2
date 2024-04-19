@@ -22,6 +22,7 @@ learner_ai_base_url = get_config_value('learning', 'learner_ai_base_url', None)
 generate_virtual_id_api = get_config_value('learning', 'generate_virtual_id_api', None)
 get_milestone_api = get_config_value('learning', 'get_milestone_api', None)
 get_learner_profile_api = get_config_value('learning', 'get_user_progress_api', None)
+add_lesson_api = get_config_value('learning', 'add_lesson_api', None)
 update_learner_profile_api = get_config_value('learning', 'update_learner_profile', None)
 get_assessment_api = get_config_value('learning', 'get_assessment_api', None)
 get_practice_showcase_contents_api = get_config_value('learning', 'get_practice_showcase_contents_api', None)
@@ -364,20 +365,21 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
 
     if user_learning_phase == "discovery":
         conversation_message = discovery_start_msg[user_conversation_language]
-        content_response = get_discovery_content(user_milestone_level, user_virtual_id, user_learning_language, user_session_id)
+        # content_response = get_discovery_content(user_milestone_level, user_virtual_id, user_learning_language, user_session_id)
     elif user_learning_phase == "practice":
         conversation_message = practice_start_msg[user_conversation_language]
-        content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
+        # content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
     elif user_learning_phase == "showcase":
         conversation_message = showcase_start_msg[user_conversation_language]
-        content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
+        # content_response = get_showcase_content(user_virtual_id, user_learning_language, user_session_id)
     else:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid learning phase!")
 
     # Return content information and conversation message
 
     conversation_response = BotResponse(audio=conversation_message, state=0)
-    content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
+    # content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
+    content_response = ContentResponse(audio="https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/18d14cba-f1a9-4692-862e-292eb3825e39.wav", text="fun", content_id="18d14cba-f1a9-4692-862e-292eb3825e39", milestone="discovery", milestone_level=user_milestone_level)
 
     return LearningResponse(conversation=conversation_response, content=content_response)
 
@@ -386,9 +388,13 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
 async def learning_conversation_next(request: LearningNextRequest) -> LearningResponse:
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
+
+    user_milestone_level = retrieve_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
+    user_learning_phase = retrieve_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
+
     discovery_start_message = discovery_start_msg[user_conversation_language]
     conversation_response = BotResponse(audio=discovery_start_message, state=0)
-    content_response = ContentResponse(audio="https://ax2cel5zyviy.compat.objectstorage.ap-hyderabad-1.oraclecloud.com/sbdjb-kathaasaagara/audio-output-20240418-112234.mp3", text="Hello", content_id="hello123")
+    content_response = ContentResponse(audio="https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/b5637e7f-b9ec-4efe-9afc-368e346ef5a9.wav", text="box", content_id="b5637e7f-b9ec-4efe-9afc-368e346ef5a9", milestone="discovery", milestone_level=user_milestone_level)
 
     return LearningResponse(conversation=conversation_response, content=content_response)
 
@@ -458,20 +464,19 @@ def generate_sub_session_id(length=24):
 
 def get_discovery_content(user_milestone_level, user_virtual_id, user_learning_language, session_id) -> ContentResponse:
     stored_user_assessment_collections: str = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_collections")
-    headers = {
-        'Content-Type': 'application/json'
-    }
+
     user_assessment_collections: dict = {}
     if stored_user_assessment_collections:
         user_assessment_collections = json.loads(stored_user_assessment_collections)
 
     logger.info({"user_virtual_id": user_virtual_id, "Redis user_assessment_collections": user_assessment_collections})
 
-    learning_language = get_config_value('request', 'learn_language', None)
-
     if stored_user_assessment_collections is None:
+        headers = {
+            'Content-Type': 'application/json'
+        }
         user_assessment_collections: dict = {}
-        payload = {"tags": ["ASER"], "language": learning_language}
+        payload = {"tags": ["ASER"], "language": user_learning_language}
 
         get_assessment_response = requests.request("POST", get_assessment_api, headers=headers, data=json.dumps(payload))
         logger.info({"user_virtual_id": user_virtual_id, "get_assessment_response": get_assessment_response})
@@ -550,10 +555,10 @@ def get_discovery_content(user_milestone_level, user_virtual_id, user_learning_l
 
         logger.info({"user_virtual_id": user_virtual_id, "completed_collection_id": current_collection.get("collectionId"), "after_removing_completed_collection_user_assessment_collections": user_assessment_collections})
 
-        add_lesson_api = get_config_value('learning', 'add_lesson_api', None)
+
         add_lesson_payload = {"userId": user_virtual_id, "sessionId": session_id, "milestone": "discovery", "lesson": current_collection.get("name"), "progress": 100,
-                              "milestoneLevel": user_milestone_level, "language": learning_language}
-        add_lesson_response = requests.request("POST", add_lesson_api, headers=headers, data=json.dumps(add_lesson_payload))
+                              "milestoneLevel": user_milestone_level, "language": user_learning_language}
+        add_lesson_response = requests.request("POST", learner_ai_base_url + add_lesson_api, headers=headers, data=json.dumps(add_lesson_payload))
         logger.info({"user_virtual_id": user_virtual_id, "add_lesson_response": add_lesson_response})
 
         if len(user_assessment_collections) != 0:
@@ -581,9 +586,8 @@ def get_discovery_content(user_milestone_level, user_virtual_id, user_learning_l
     content_source_data = current_collection.get("content")[0].get("contentSourceData")[0]
     logger.debug({"user_virtual_id": user_virtual_id, "content_source_data": content_source_data})
     content_id = current_collection.get("content")[0].get("contentId")
-    audio_url = "https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/" + content_id + ".wav"
 
-    output = ContentResponse(audio=audio_url, text=content_source_data.get("text"), content_id=content_id)
+    output = ContentResponse(audio=content_source_data.get("audioUrl"), text=content_source_data.get("text"), content_id=content_id)
     return output
 
 
