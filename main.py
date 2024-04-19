@@ -78,6 +78,7 @@ conclusion_msg = json.loads(get_config_value("conversation_messages", "conclusio
 discovery_start_msg = json.loads(get_config_value("conversation_messages", "discovery_phase_message", None))
 practice_start_msg = json.loads(get_config_value("conversation_messages", "practice_phase_message", None))
 showcase_start_msg = json.loads(get_config_value("conversation_messages", "showcase_phase_message", None))
+learning_next_content_msg = json.loads(get_config_value("conversation_messages", "learning_next_content_message", None))
 
 
 # Define a function to store and retrieve data in Redis
@@ -392,8 +393,8 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     user_milestone_level = retrieve_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
     user_learning_phase = retrieve_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
 
-    discovery_start_message = discovery_start_msg[user_conversation_language]
-    conversation_response = BotResponse(audio=discovery_start_message, state=0)
+    learing_next_content_message = learning_next_content_msg[user_conversation_language]
+    conversation_response = BotResponse(audio=learing_next_content_message, state=0)
     content_response = ContentResponse(audio="https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/b5637e7f-b9ec-4efe-9afc-368e346ef5a9.wav", text="box", content_id="b5637e7f-b9ec-4efe-9afc-368e346ef5a9", milestone="discovery", milestone_level=user_milestone_level)
 
     return LearningResponse(conversation=conversation_response, content=content_response)
