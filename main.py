@@ -554,34 +554,35 @@ def fetch_content(user_virtual_id: str, user_milestone_level: str, user_learning
 
 def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_learning_phase: str, user_learning_language: str, user_session_id: str, phase_session_id: str, in_progress_collection: str,
                         in_progress_collection_category: str) -> ContentResponse:
-    # if user_learning_phase == "discovery":
-    #     get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
-    #     {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
-    #     logger.info({"user_virtual_id": user_virtual_id, "get_set_result_resp": get_set_result_resp})
-    #
-    #     if get_set_result_resp.status_code != 200 and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
-    #         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Get result API failed!")
-    #
-    #     user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
-    #     session_result = get_set_result_resp.json()["data"]["sessionResult"]
-    #     if session_result == "pass":
-    #         user_learning_phase = "practice"
-    #         store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
-    #         store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
-    #         return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
-    #     # TODO - write logic for fail scenario. Do we restart discovery with Character collection set?
-    #     elif session_result == "fail":
-    #         user_learning_phase = "practice"
-    #         store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
-    #         store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
-    #         return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
-    # elif user_learning_phase == "practice":
-    #     user_learning_phase = "showcase"
-    #     store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
-    #     return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
-    # else:
-        return ContentResponse()
+    if user_learning_phase == "discovery":
+        get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
+        {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
+        logger.info({"user_virtual_id": user_virtual_id, "get_set_result_resp": get_set_result_resp})
 
+        if get_set_result_resp.status_code != 200 and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Get result API failed!")
+
+        user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
+        session_result = get_set_result_resp.json()["data"]["sessionResult"]
+        if session_result == "pass":
+            user_learning_phase = "practice"
+            store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
+            store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
+            # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
+        # TODO - write logic for fail scenario. Do we restart discovery with Character collection set?
+        elif session_result == "fail":
+            user_learning_phase = "practice"
+            store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
+            store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
+            # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
+    elif user_learning_phase == "practice":
+        user_learning_phase = "showcase"
+        store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
+        # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
+    else:
+        # return ContentResponse()
+
+    return ContentResponse()
 
 def get_assessment(user_virtual_id: str, user_milestone_level: str, user_learning_phase: str, user_learning_language: str, user_session_id: str, phase_session_id: str) -> ContentResponse:
     stored_user_assessment_collections: str = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_collections")
