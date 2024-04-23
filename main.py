@@ -485,9 +485,9 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
 
     content_limit = int(get_config_value('learning', 'content_limit', None))
 
-    if completed_contents and user_learning_phase == "practice" and len(completed_contents) == 9:
+    if completed_contents and user_learning_phase == "discovery" and len(completed_contents) == 9:
         conversation_response = BotResponse(state=0)
-    elif completed_contents and user_learning_phase != "practice" and len(completed_contents) == (content_limit-1):
+    elif completed_contents and user_learning_phase != "discovery" and len(completed_contents) == (content_limit-1):
         conversation_response = BotResponse(state=0)
     else:
         conversation_response = BotResponse(audio=learning_next_content_message, state=1)
