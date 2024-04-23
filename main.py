@@ -485,7 +485,7 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     if content_response is not None and content_response.text:
         conversation_response = BotResponse(audio=learning_next_content_message, state=1)
     else:
-        conversation_response = BotResponse(audio=learning_next_content_message, state=0)
+        conversation_response = BotResponse(state=0)
 
     return LearningResponse(conversation=conversation_response, content=content_response)
 
