@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.pydantic_v1 import BaseModel
-
+from io import BytesIO
 from io_processing import *
 from logger import logger
 from utils import is_url, is_base64
@@ -443,6 +443,16 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
             given_audio_bytes = given_audio.export().read()
             user_audio = base64.b64encode(given_audio_bytes).decode('utf-8')
             os.remove(local_filename)
+        else:
+            # Decode base64 audio string
+            audio_bytes = base64.b64decode(user_audio)
+            # Load audio from bytes
+            audio = AudioSegment.from_file(BytesIO(audio_bytes))
+            # Convert audio to MP3 format
+            output_buffer = BytesIO()
+            audio.export(output_buffer, format="mp3")
+            # Get base64 string of MP3 audio
+            user_audio = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
 
         payload = {"audio": user_audio, "contentId": content_id, "contentType": in_progress_collection_category, "date": formatted_date, "language": user_learning_language, "original_text": original_content_text, "session_id": user_session_id,
                    "sub_session_id": phase_session_id, "user_id": user_virtual_id}
