@@ -304,7 +304,7 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     # Get milestone of the user
     user_milestone_level_resp = requests.request("GET", learner_ai_base_url + get_milestone_api + user_virtual_id, params={"language": learning_language})
     # {status: "success", data: {milestone_level: "m1"}}
-    logger.info("user_milestone_level_resp:: ", user_milestone_level_resp.status_code, " || ", user_milestone_level_resp.text)
+    logger.info({"user_milestone_level_resp": user_milestone_level_resp.status_code, "text": user_milestone_level_resp.text})
     print(json.loads(user_milestone_level_resp.text)["status"])
     if user_milestone_level_resp.status_code != 200 and user_milestone_level_resp.status_code != 201:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User milestone level retrieval failed!")
@@ -411,7 +411,7 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     user_audio = request.user_audio_msg
     if not is_url(user_audio) and not is_base64(user_audio):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid user audio input!")
-    logger.debug("user_virtual_id: ", user_virtual_id, " || user_session_id: ", user_session_id, " || user_audio: ", user_audio)
+    logger.debug({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_audio": user_audio})
 
     content_id = request.content_id
     if not content_id:
