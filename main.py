@@ -710,25 +710,22 @@ def get_assessment(user_virtual_id: str, user_milestone_level: str, user_learnin
 
 def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_phase: str, user_learning_language: str, user_session_id: str, phase_session_id: str) -> ContentResponse:
     current_content = None
-    stored_user_practice_showcase_contents: str = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_practice_showcase_contents")
+    stored_user_practice_showcase_contents: str = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_contents")
     user_showcase_contents = []
     if stored_user_practice_showcase_contents:
         user_showcase_contents = json.loads(stored_user_practice_showcase_contents)
 
     logger.info({"user_virtual_id": user_virtual_id, "Redis stored_user_showcase_contents": stored_user_practice_showcase_contents})
-
-    learning_language = get_config_value('request', 'learn_language', None)
     content_limit = int(get_config_value('request', 'content_limit', None))
     if stored_user_practice_showcase_contents is None:
-        get_showcase_contents_api = get_config_value('learning', 'get_showcase_contents_api', None) + user_virtual_id
         target_limit = int(get_config_value('request', 'target_limit', None))
         # defining a params dict for the parameters to be sent to the API
-        params = {'language': learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
+        params = {'language': user_learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
         # sending get request and saving the response as response object
-        showcase_contents_response = requests.get(url=learner_ai_base_url + get_showcase_contents_api + user_virtual_id, params=params)
+        showcase_contents_response = requests.get(url=learner_ai_base_url + get_practice_showcase_contents_api + user_virtual_id, params=params)
         user_showcase_contents = showcase_contents_response.json()["content"]
         logger.info({"user_virtual_id": user_virtual_id, "user_showcase_contents": user_showcase_contents})
-        store_data(user_virtual_id + "_" + user_learning_language + "_showcase_contents", json.dumps(user_showcase_contents))
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_contents", json.dumps(user_showcase_contents))
 
     completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
     logger.info({"user_virtual_id": user_virtual_id, "completed_contents": completed_contents})
