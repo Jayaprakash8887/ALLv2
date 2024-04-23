@@ -588,11 +588,23 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
         user_learning_phase = "showcase"
         store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
         # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
+    elif user_learning_phase == "showcase":
+        remove_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_session")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_collections")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_sub_session")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_collections")
+        remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_content")
     else:
         # return ContentResponse()
         logger.info("shifting to next phase")
 
     return ContentResponse()
+
 
 def get_assessment(user_virtual_id: str, user_milestone_level: str, user_learning_phase: str, user_learning_language: str, user_session_id: str, phase_session_id: str) -> ContentResponse:
     stored_user_assessment_collections: str = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_collections")
