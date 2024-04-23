@@ -364,7 +364,7 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
         return_welcome_intent_msg = greeting_positive_resp_msg[user_conversation_language]
     elif user_intent == "other" and emotion_summary == "positive":
         return_welcome_intent_msg = non_greeting_positive_resp_msg[user_conversation_language]
-    if user_intent == "greeting" and emotion_summary == "other":
+    elif user_intent == "greeting" and emotion_summary == "other":
         return_welcome_intent_msg = greeting_other_resp_msg[user_conversation_language]
     else:
         return_welcome_intent_msg = non_greeting_other_resp_msg[user_conversation_language]
@@ -589,6 +589,7 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
         store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
         # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
     elif user_learning_phase == "showcase":
+        logger.info("Ending learning session for user: ", user_virtual_id)
         remove_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
         remove_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
         remove_data(user_virtual_id + "_" + user_learning_language + "_session")
