@@ -399,7 +399,7 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
     # Return content information and conversation message
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
     conversation_response = BotStartResponse(audio=conversation_message)
-
+    logger.info({"user_virtual_id": user_virtual_id, "conversation_response": conversation_response, "content_response": content_response})
     return LearningStartResponse(conversation=conversation_response, content=content_response)
 
 
@@ -486,7 +486,7 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
         conversation_response = BotResponse(audio=learning_next_content_message, state=1)
     else:
         conversation_response = BotResponse(state=0)
-
+    logger.info({"user_virtual_id": user_virtual_id, "conversation_response": conversation_response, "content_response": content_response})
     return LearningResponse(conversation=conversation_response, content=content_response)
 
 
