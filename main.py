@@ -483,7 +483,7 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     learning_next_content_message = learning_next_content_msg[user_conversation_language]
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
 
-    content_limit = int(get_config_value('request', 'content_limit', None))
+    content_limit = int(get_config_value('learning', 'content_limit', None))
 
     if completed_contents and user_learning_phase == "practice" and len(completed_contents) == 9:
         conversation_response = BotResponse(audio=learning_next_content_message, state=0)
@@ -735,9 +735,9 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
         user_showcase_contents = json.loads(stored_user_practice_showcase_contents)
 
     logger.info({"user_virtual_id": user_virtual_id, "Redis stored_user_showcase_contents": stored_user_practice_showcase_contents})
-    content_limit = int(get_config_value('request', 'content_limit', None))
+    content_limit = int(get_config_value('learning', 'content_limit', None))
     if stored_user_practice_showcase_contents is None:
-        target_limit = int(get_config_value('request', 'target_limit', None))
+        target_limit = int(get_config_value('learning', 'target_limit', None))
         # defining a params dict for the parameters to be sent to the API
         params = {'language': user_learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
         # sending get request and saving the response as response object
