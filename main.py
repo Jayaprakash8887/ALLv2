@@ -573,16 +573,15 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Get result API failed!")
 
         user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
+        store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
         session_result = get_set_result_resp.json()["data"]["sessionResult"]
         if session_result == "pass":
             user_learning_phase = "practice"
-            store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
             store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
             # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
         # TODO - write logic for fail scenario. Do we restart discovery with Character collection set?
         elif session_result == "fail":
             user_learning_phase = "practice"
-            store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
             store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
             # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
     elif user_learning_phase == "practice":
@@ -696,7 +695,7 @@ def get_assessment(user_virtual_id: str, user_milestone_level: str, user_learnin
     if completed_contents:
         add_lesson_payload = {"userId": user_virtual_id, "sessionId": user_session_id, "milestone": "discovery", "lesson": current_collection.get("name"),
                               "progress": (len(completed_contents) + 1) / (len(current_collection.get("content")) + len(completed_contents)) * 100,
-                              "collectionId": current_collection.get("collectionId"), "milestoneLevel": user_milestone_level, "language": user_learning_language}
+                              "milestoneLevel": user_milestone_level, "language": user_learning_language}
     else:
         add_lesson_payload = {"userId": user_virtual_id, "sessionId": user_session_id, "milestone": "discovery", "lesson": current_collection.get("name"),
                               "progress": 1 / (len(current_collection.get("content"))) * 100,
@@ -719,15 +718,14 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
     logger.info({"user_virtual_id": user_virtual_id, "Redis stored_user_showcase_contents": stored_user_practice_showcase_contents})
 
     learning_language = get_config_value('request', 'learn_language', None)
-
+    content_limit = int(get_config_value('request', 'content_limit', None))
     if stored_user_practice_showcase_contents is None:
         get_showcase_contents_api = get_config_value('learning', 'get_showcase_contents_api', None) + user_virtual_id
-        content_limit = int(get_config_value('request', 'content_limit', None))
         target_limit = int(get_config_value('request', 'target_limit', None))
         # defining a params dict for the parameters to be sent to the API
         params = {'language': learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
         # sending get request and saving the response as response object
-        showcase_contents_response = requests.get(url=get_showcase_contents_api + user_virtual_id, params=params)
+        showcase_contents_response = requests.get(url=learner_ai_base_url + get_showcase_contents_api + user_virtual_id, params=params)
         user_showcase_contents = showcase_contents_response.json()["content"]
         logger.info({"user_virtual_id": user_virtual_id, "user_showcase_contents": user_showcase_contents})
         store_data(user_virtual_id + "_" + user_learning_language + "_showcase_contents", json.dumps(user_showcase_contents))
@@ -761,7 +759,18 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
     content_source_data = current_content.get("contentSourceData")[0]
     logger.debug({"user_virtual_id": user_virtual_id, "content_source_data": content_source_data})
     content_id = current_content.get("contentId")
-    audio_url = "https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/" + content_id + ".wav"
+
+    # make addLesson call
+    add_lesson_payload = {"userId": user_virtual_id, "sessionId": user_session_id, "milestone": user_learning_phase, "lesson": "0",
+                          "progress": (len(completed_contents) + 1) / content_limit * 100, "milestoneLevel": user_milestone_level, "language": user_learning_language}
+    logger.info({"user_virtual_id": user_virtual_id, "add_lesson_payload": add_lesson_payload})
+    add_lesson_response = requests.request("POST", learner_ai_base_url + add_lesson_api, headers=headers, data=json.dumps(add_lesson_payload))
+    logger.info({"user_virtual_id": user_virtual_id, "add_lesson_response": add_lesson_response})
+
+    if user_learning_phase == "practice":
+        audio_url = "https://all-dev-content-service.s3.ap-south-1.amazonaws.com/Audio/" + content_id + ".wav"
+    else:
+        audio_url = content_source_data.get("audioUrl")
 
     output = ContentResponse(audio=audio_url, text=content_source_data.get("text"), content_id=content_id, milestone_level=user_milestone_level, milestone=user_learning_phase)
     return output
