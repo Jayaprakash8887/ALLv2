@@ -426,6 +426,8 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     phase_session_id = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_learning_phase + "_sub_session")
     in_progress_collection_category = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category")
 
+    completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
+
     # Submit user response if the phase is not 'practice'
     if user_learning_phase != "practice":
         # Get the current date and Format the date as "YYYY-MM-DD"
@@ -465,7 +467,6 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
         update_status = update_learner_profile_response.json()["status"]
 
         if update_status == "success":
-            completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
             if completed_contents:
                 completed_contents = json.loads(completed_contents)
                 if type(completed_contents) == list:
@@ -481,10 +482,15 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
 
     learning_next_content_message = learning_next_content_msg[user_conversation_language]
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
-    if content_response is not None and content_response.text:
-        conversation_response = BotResponse(audio=learning_next_content_message, state=1)
-    else:
+
+    content_limit = int(get_config_value('request', 'content_limit', None))
+
+    if completed_contents and user_learning_phase == "practice" and len(completed_contents) == 9:
         conversation_response = BotResponse(audio=learning_next_content_message, state=0)
+    elif completed_contents and user_learning_phase != "practice" and len(completed_contents) == (content_limit-1):
+        conversation_response = BotResponse(audio=learning_next_content_message, state=0)
+    else:
+        conversation_response = BotResponse(audio=learning_next_content_message, state=1)
 
     return LearningResponse(conversation=conversation_response, content=content_response)
 
