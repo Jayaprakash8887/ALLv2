@@ -30,6 +30,8 @@ update_learner_profile_api = get_config_value('learning', 'update_learner_profil
 get_assessment_api = get_config_value('learning', 'get_assessment_api', None)
 get_practice_showcase_contents_api = get_config_value('learning', 'get_practice_showcase_contents_api', None)
 get_result_api = get_config_value('learning', 'get_result_api', None)
+content_limit = int(get_config_value('learning', 'content_limit', None))
+target_limit = int(get_config_value('learning', 'target_limit', None))
 
 llm_client = openai.OpenAI()
 
@@ -396,7 +398,8 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
     else:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid learning phase!")
 
-    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "phase_session_id": phase_session_id, "conversation_message": conversation_message})
+    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "phase_session_id": phase_session_id,
+                 "conversation_message": conversation_message})
 
     # Return content information and conversation message
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
@@ -427,6 +430,8 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     user_learning_phase = retrieve_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
     phase_session_id = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_learning_phase + "_sub_session")
     in_progress_collection_category = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category")
+
+    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "phase_session_id": phase_session_id, "in_progress_collection_category": in_progress_collection_category})
 
     # Submit user response if the phase is not 'practice'
     if user_learning_phase != "practice":
@@ -480,6 +485,18 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
             store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents", json.dumps(completed_contents))
         else:
             raise HTTPException(500, "Submitted response could not be registered!")
+    elif user_learning_phase == "practice":
+        completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
+        if completed_contents:
+            completed_contents = json.loads(completed_contents)
+            if type(completed_contents) == list:
+                completed_contents = set(completed_contents)
+            completed_contents.add(content_id)
+        else:
+            completed_contents = {content_id}
+        completed_contents = list(completed_contents)
+        logger.debug({"user_virtual_id": user_virtual_id, "updated_completed_contents": completed_contents})
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents", json.dumps(completed_contents))
 
     learning_next_content_message = learning_next_content_msg[user_conversation_language]
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
@@ -569,7 +586,7 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
                         in_progress_collection_category: str) -> ContentResponse:
     if user_learning_phase == "discovery":
         get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
-        {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
+            {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
         logger.info({"user_virtual_id": user_virtual_id, "get_set_result_resp": get_set_result_resp})
 
         if get_set_result_resp.status_code != 200 and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
@@ -592,6 +609,19 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
         store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
         # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
     elif user_learning_phase == "showcase":
+        get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
+            {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
+        logger.info({"user_virtual_id": user_virtual_id, "get_set_result_resp": get_set_result_resp})
+
+        if get_set_result_resp.status_code != 200 and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Get result API failed!")
+
+        user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
+        store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
+        session_result = get_set_result_resp.json()["data"]["sessionResult"]
+
+        # TODO - write logic for pass and fail scenario. Do we restart discovery?
+
         logger.info("Ending learning session for user: ", user_virtual_id)
         remove_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
         remove_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
@@ -732,9 +762,8 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
         user_showcase_contents = json.loads(stored_user_practice_showcase_contents)
 
     logger.info({"user_virtual_id": user_virtual_id, "Redis stored_user_showcase_contents": stored_user_practice_showcase_contents})
-    content_limit = int(get_config_value('learning', 'content_limit', None))
+
     if stored_user_practice_showcase_contents is None:
-        target_limit = int(get_config_value('learning', 'target_limit', None))
         # defining a params dict for the parameters to be sent to the API
         params = {'language': user_learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
         # sending get request and saving the response as response object
@@ -752,8 +781,7 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
     logger.info({"user_virtual_id": user_virtual_id, "progress_content": in_progress_content})
 
     if completed_contents and in_progress_content and in_progress_content in json.loads(completed_contents):
-        # in_progress_content = None
-        return shift_to_next_phase(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id, "", "")
+        in_progress_content = None
 
     if completed_contents:
         completed_contents = json.loads(completed_contents)
@@ -765,6 +793,7 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
     if in_progress_content is None and len(user_showcase_contents) > 0:
         current_content = user_showcase_contents[0]
         store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_content", current_content.get("contentId"))
+        store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category", current_content.get("contentType"))
     elif in_progress_content is not None and len(user_showcase_contents) > 0:
         for showcase_content in user_showcase_contents:
             if showcase_content.get("contentId") == in_progress_content:
