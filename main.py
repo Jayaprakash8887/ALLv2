@@ -396,6 +396,8 @@ async def learning_conversation_start(request: LearningStartRequest) -> Learning
     else:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Invalid learning phase!")
 
+    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "phase_session_id": phase_session_id, "conversation_message": conversation_message})
+
     # Return content information and conversation message
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
     conversation_response = BotStartResponse(audio=conversation_message)
@@ -736,9 +738,9 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
         # defining a params dict for the parameters to be sent to the API
         params = {'language': user_learning_language, 'contentlimit': content_limit, 'gettargetlimit': target_limit}
         # sending get request and saving the response as response object
-        showcase_contents_response = requests.get(url=learner_ai_base_url + get_practice_showcase_contents_api + user_virtual_id, params=params)
-        user_showcase_contents = showcase_contents_response.json()["content"]
-        logger.info({"user_virtual_id": user_virtual_id, "user_showcase_contents": user_showcase_contents})
+        get_contents_response = requests.request("GET", learner_ai_base_url + get_practice_showcase_contents_api + "word/" + user_virtual_id, params=params)
+        logger.info({"user_virtual_id": user_virtual_id, "get_contents_response": get_contents_response})
+        user_showcase_contents = get_contents_response.json()["content"]
         store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_contents", json.dumps(user_showcase_contents))
 
     completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
