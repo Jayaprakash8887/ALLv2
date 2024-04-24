@@ -740,6 +740,9 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
         # sending get request and saving the response as response object
         get_contents_response = requests.request("GET", learner_ai_base_url + get_practice_showcase_contents_api + "word/" + user_virtual_id, params=params)
         logger.info({"user_virtual_id": user_virtual_id, "get_contents_response": get_contents_response})
+        if get_contents_response.status_code != 200 and get_contents_response.status_code != 201:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Learner Contents retrieval failed!")
+
         user_showcase_contents = get_contents_response.json()["content"]
         store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_contents", json.dumps(user_showcase_contents))
 
@@ -749,7 +752,8 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
     logger.info({"user_virtual_id": user_virtual_id, "progress_content": in_progress_content})
 
     if completed_contents and in_progress_content and in_progress_content in json.loads(completed_contents):
-        in_progress_content = None
+        # in_progress_content = None
+        return shift_to_next_phase(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id, "", "")
 
     if completed_contents:
         completed_contents = json.loads(completed_contents)
@@ -774,8 +778,12 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
     content_id = current_content.get("contentId")
 
     # make addLesson call
-    add_lesson_payload = {"userId": user_virtual_id, "sessionId": user_session_id, "milestone": user_learning_phase, "lesson": "0",
-                          "progress": (len(completed_contents) + 1) / content_limit * 100, "milestoneLevel": user_milestone_level, "language": user_learning_language}
+    if completed_contents:
+        add_lesson_payload = {"userId": user_virtual_id, "sessionId": user_session_id, "milestone": user_learning_phase, "lesson": "0",
+                              "progress": (len(completed_contents) + 1) / content_limit * 100, "milestoneLevel": user_milestone_level, "language": user_learning_language}
+    else:
+        add_lesson_payload = {"userId": user_virtual_id, "sessionId": user_session_id, "milestone": "discovery", "lesson": "0",
+                              "progress": 1 / content_limit * 100, "milestoneLevel": user_milestone_level, "language": user_learning_language}
     logger.info({"user_virtual_id": user_virtual_id, "add_lesson_payload": add_lesson_payload})
     add_lesson_response = requests.request("POST", learner_ai_base_url + add_lesson_api, headers=headers, data=json.dumps(add_lesson_payload))
     logger.info({"user_virtual_id": user_virtual_id, "add_lesson_response": add_lesson_response})
