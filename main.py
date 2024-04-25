@@ -589,6 +589,7 @@ def fetch_content(user_virtual_id: str, user_milestone_level: str, user_learning
 
 def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_learning_phase: str, user_learning_language: str, user_session_id: str, phase_session_id: str, in_progress_collection: str,
                         in_progress_collection_category: str) -> ContentResponse:
+    logger.debug({"user_virtual_id": user_virtual_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "user_learning_language": user_learning_language, "user_session_id": user_session_id, "phase_session_id": phase_session_id, "in_progress_collection": in_progress_collection, "in_progress_collection_category": in_progress_collection_category})
     if user_learning_phase == "discovery":
         get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
             {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
