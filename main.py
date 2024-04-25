@@ -294,6 +294,8 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     if learning_language is None or learning_language == "" or learning_language not in learning_language_list:
         raise HTTPException(status_code=422, detail="Unsupported learning language code entered!")
 
+    logger.info({"user_id": user_id, "password": password, "conversation_language": conversation_language, "learning_language": learning_language})
+
     user_virtual_id_resp = requests.request("GET", learner_ai_base_url + generate_virtual_id_api, params={"username": user_id, "password": password})
     if user_virtual_id_resp.status_code != 200 and user_virtual_id_resp.status_code != 201:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User virtual id generation failed!")
@@ -303,10 +305,12 @@ async def user_login(request: LoginRequest) -> LoginResponse:
     store_data(user_virtual_id + "_learning_language", learning_language)
     store_data(user_virtual_id + "_conversation_language", conversation_language)
 
+    logger.info({"user_virtual_id": user_virtual_id, "invoking_api": get_milestone_api})
+
     # Get milestone of the user
     user_milestone_level_resp = requests.request("GET", learner_ai_base_url + get_milestone_api + user_virtual_id, params={"language": learning_language})
     # {status: "success", data: {milestone_level: "m1"}}
-    logger.info({"user_milestone_level_resp": user_milestone_level_resp.status_code, "text": user_milestone_level_resp.text})
+    logger.info({"user_virtual_id": user_virtual_id, "user_milestone_level_resp": user_milestone_level_resp.status_code, "text": user_milestone_level_resp.text})
     print(json.loads(user_milestone_level_resp.text)["status"])
     if user_milestone_level_resp.status_code != 200 and user_milestone_level_resp.status_code != 201:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User milestone level retrieval failed!")
