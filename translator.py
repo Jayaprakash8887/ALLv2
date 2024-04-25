@@ -121,7 +121,7 @@ def speech_to_text(encoded_string, input_language):
 
 
 def indic_translation(text, source, destination):
-    logger.info(f"Translating {text} from {source} to {destination}")
+    logger.debug(f"Translating {text} from {source} to {destination}")
     if source == destination:
         return text
     try:
@@ -136,7 +136,7 @@ def indic_translation(text, source, destination):
                             "sourceLanguage": source,
                             "targetLanguage": destination
                         },
-                        "serviceId": asr_mapping[source]
+                        "serviceId": "ai4bharat/indictrans--gpu-t4"
                     }
                 }
             ],
@@ -152,7 +152,7 @@ def indic_translation(text, source, destination):
             'Authorization': get_config_value('translator', 'BHASHINI_API_KEY', None),
             'Content-Type': 'application/json'
         }
-
+        logger.debug(f"payload: {payload}")
         response = requests.request("POST", url, headers=headers, data=json.dumps(payload))
         process_time = time.time() - start_time
         response.raise_for_status()
@@ -160,7 +160,7 @@ def indic_translation(text, source, destination):
     except requests.exceptions.RequestException as e:
         process_time = time.time() - start_time
         raise RequestError(e.response) from e
-        logger.info(f"Error in translation: {e}")
+        logger.debug(f"Error in translation: {e}")
         # indic_text = google_translate_text(text, source, destination)
     return indic_text
 
