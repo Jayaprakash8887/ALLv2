@@ -799,6 +799,8 @@ def get_content(user_virtual_id: str, user_milestone_level: str, user_learning_p
                 if showcase_content.get("contentId") == completed_content:
                     user_showcase_contents.remove(showcase_content)
 
+    logger.debug({"user_virtual_id": user_virtual_id, "user_showcase_contents": user_showcase_contents, "in_progress_content": in_progress_content})
+
     if in_progress_content is None and len(user_showcase_contents) > 0:
         current_content = user_showcase_contents[0]
         store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_content", current_content.get("contentId"))
