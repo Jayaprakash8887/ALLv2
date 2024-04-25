@@ -628,13 +628,13 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
 
         user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
         store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
+        store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", "discovery")
         session_result = get_set_result_resp.json()["data"]["sessionResult"]
 
         # TODO - write logic for pass and fail scenario. Do we restart discovery?
 
         logger.info("Ending learning session for user: ", user_virtual_id)
-        remove_data(user_virtual_id + "_" + user_learning_language + "_milestone_level")
-        remove_data(user_virtual_id + "_" + user_learning_language + "_learning_phase")
+
         remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection")
         remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category")
         remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
@@ -645,7 +645,7 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
     else:
         # return ContentResponse()
         logger.info("shifting to next phase")
-    logger.debug({"method": "shift_phase", "user_virtual_id": user_virtual_id, "updated_user_milestone_level": user_milestone_level, "updated_user_learning_phase": user_learning_phase})
+
     return ContentResponse()
 
 
