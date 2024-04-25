@@ -277,6 +277,7 @@ def validate_user(user_virtual_id: str):
 
 @app.post("/v1/login", include_in_schema=True)
 async def user_login(request: LoginRequest) -> LoginResponse:
+    logger.debug({"request": request})
     user_id = request.user_id
     password = request.password
     conversation_language = request.conversation_language.strip().lower()
