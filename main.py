@@ -326,7 +326,9 @@ async def user_login(request: LoginRequest) -> LoginResponse:
 
     try:
         user_progress = json.loads(user_progress_resp.text)["result"]["result"]
-        store_data(user_virtual_id + "_" + learning_language + "_learning_phase", user_progress["milestone"])
+        current_learning_phase = retrieve_data(user_virtual_id + "_" + learning_language + "_learning_phase")
+        if current_learning_phase is None:
+            store_data(user_virtual_id + "_" + learning_language + "_learning_phase", user_progress["milestone"])
         store_data(user_virtual_id + "_" + learning_language + "_session", user_progress["sessionId"])
     except Exception as e:
         logger.error({"user_virtual_id": user_virtual_id, "error": e})
