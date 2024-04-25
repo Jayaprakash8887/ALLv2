@@ -601,6 +601,7 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
         user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
         store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
         session_result = get_set_result_resp.json()["data"]["sessionResult"]
+        logger.debug({"user_virtual_id": user_virtual_id, "user_milestone_level": user_milestone_level, "session_result": session_result})
         if session_result == "pass":
             user_learning_phase = "practice"
             store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
@@ -610,6 +611,7 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
             user_learning_phase = "practice"
             store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
             # return get_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
+        logger.debug({"user_virtual_id": user_virtual_id, "updated_user_milestone_level": user_milestone_level, "updated_user_learning_phase": user_learning_phase})
     elif user_learning_phase == "practice":
         user_learning_phase = "showcase"
         store_data(user_virtual_id + "_" + user_learning_language + "_learning_phase", user_learning_phase)
