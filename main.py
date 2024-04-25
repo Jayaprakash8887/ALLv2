@@ -633,8 +633,6 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
 
         # TODO - write logic for pass and fail scenario. Do we restart discovery?
 
-        logger.info("Ending learning session for user: ", user_virtual_id)
-
         remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection")
         remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category")
         remove_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
