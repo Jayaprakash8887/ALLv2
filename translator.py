@@ -6,6 +6,7 @@ import requests
 from pydub import AudioSegment
 
 from config_util import get_config_value
+from logger import logger
 from utils import *
 
 asr_mapping = {
@@ -120,6 +121,7 @@ def speech_to_text(encoded_string, input_language):
 
 
 def indic_translation(text, source, destination):
+    logger.info(f"Translating {text} from {source} to {destination}")
     if source == destination:
         return text
     try:
@@ -158,6 +160,7 @@ def indic_translation(text, source, destination):
     except requests.exceptions.RequestException as e:
         process_time = time.time() - start_time
         raise RequestError(e.response) from e
+        logger.info(f"Error in translation: {e}")
         # indic_text = google_translate_text(text, source, destination)
     return indic_text
 
