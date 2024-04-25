@@ -644,7 +644,7 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
     else:
         # return ContentResponse()
         logger.info("shifting to next phase")
-
+    logger.debug({"method": "shift_phase", "user_virtual_id": user_virtual_id, "updated_user_milestone_level": user_milestone_level, "updated_user_learning_phase": user_learning_phase})
     return ContentResponse()
 
 
