@@ -5,7 +5,6 @@ import openai
 import redis
 from datetime import datetime
 
-import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,8 +16,9 @@ from utils import is_url, is_base64
 
 gpt_model = get_config_value("llm", "gpt_model", None)
 
-emotion_classifier_prompt = get_config_value("llm", "emotion_classifier_prompt", None)
+welcome_emotion_classifier_prompt = get_config_value("llm", "welcome_emotion_classifier_prompt", None)
 welcome_msg_classifier_prompt = get_config_value("llm", "welcome_msg_classifier_prompt", None)
+feedback_emotion_classifier_prompt = get_config_value("llm", "feedback_emotion_classifier_prompt", None)
 feedback_msg_classifier_prompt = get_config_value("llm", "feedback_msg_classifier_prompt", None)
 
 learner_ai_base_url = get_config_value('learning', 'learner_ai_base_url', None)
@@ -237,12 +237,17 @@ def invoke_llm(user_virtual_id: str, user_statement: str, prompt: str, session_i
     return llm_response
 
 
-def emotions_classifier(user_virtual_id: str, user_statement: str, session_id: str, language: str) -> str:
+def emotions_classifier(emotion_type: str, user_virtual_id: str, user_statement: str, session_id: str, language: str) -> str:
     logger.info({"user_virtual_id": user_virtual_id, "language": language, "session_id": session_id, "user_statement": user_statement})
     user_session_emotions = retrieve_data(user_virtual_id + "_" + language + "_" + session_id + "_emotions")
     logger.info({"user_virtual_id": user_virtual_id, "language": language, "session_id": session_id, "user_session_emotions": user_session_emotions})
 
-    emotion_category = invoke_llm(user_virtual_id, user_statement, emotion_classifier_prompt, session_id, language)
+    if emotion_type == "welcome":
+        emotion_classifier_prompt = welcome_emotion_classifier_prompt
+    else:
+        emotion_classifier_prompt = feedback_emotion_classifier_prompt
+
+    emotion_category = invoke_llm(user_virtual_id, user_statement, welcome_emotion_classifier_prompt, session_id, language)
     logger.info({"emotions_classifier": user_virtual_id, "user_statement": user_statement, "emotion_classifier_prompt": emotion_classifier_prompt, "emotion_category": emotion_category, "session_id": session_id, "language": language})
     if user_session_emotions:
         user_session_emotions = json.loads(user_session_emotions)
@@ -364,7 +369,7 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
     user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
     logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
     # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotion_category = emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
+    emotion_category = emotions_classifier("welcome", user_virtual_id, user_statement, user_session_id, user_learning_language)
     emotion_summary = emotions_summary(emotion_category)
     # classify welcome_user_resp intent into 'greeting' and 'other'
     user_intent = invoke_llm(user_virtual_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
@@ -539,7 +544,7 @@ async def feedback_conversation_next(request: ConversationRequest) -> Conversati
     user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
     logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
     # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotion_category = emotions_classifier(user_virtual_id, user_statement, user_session_id, user_learning_language)
+    emotion_category = emotions_classifier("feedbck", user_virtual_id, user_statement, user_session_id, user_learning_language)
     emotion_summary = emotions_summary(emotion_category)
     # classify welcome_user_resp intent into 'greeting' and 'other'
     user_intent = invoke_llm(user_virtual_id, user_statement, feedback_msg_classifier_prompt, user_session_id, user_learning_language)
