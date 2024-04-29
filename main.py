@@ -368,6 +368,7 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
     emotion_summary = emotions_summary(emotion_category)
     # classify welcome_user_resp intent into 'greeting' and 'other'
     user_intent = invoke_llm(user_virtual_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
+    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_statement": user_statement, "welcome_msg_classifier_prompt": welcome_msg_classifier_prompt, "user_intent": user_intent, "emotion_summary": emotion_summary})
     # Based on the intent, return response
     if user_intent == "greeting" and emotion_summary == "positive":
         return_welcome_intent_msg = greeting_positive_resp_msg[user_conversation_language]
