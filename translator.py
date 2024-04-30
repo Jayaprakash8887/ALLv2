@@ -136,7 +136,7 @@ def indic_translation(text, source, destination):
                             "sourceLanguage": source,
                             "targetLanguage": destination
                         },
-                        "serviceId": "ai4bharat/indictrans-v2-all-gpu--t4"
+                        "serviceId": "ai4bharat/indictrans--gpu-t4"
                     }
                 }
             ],
