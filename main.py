@@ -591,14 +591,14 @@ async def feedback_conversation_next(request: ConversationRequest) -> Conversati
 
 
 @app.post("/v1/continue_start", include_in_schema=True)
-async def continue_session(request: ConversationStartRequest) -> ConversationStartResponse:
+async def continue_session_start(request: ConversationStartRequest) -> ConversationStartResponse:
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
     continue_message = continue_session_msg[user_conversation_language]
     return ConversationStartResponse(conversation=BotStartResponse(audio=continue_message))
 
 
-@app.post("/v1/contine_next", include_in_schema=True)
+@app.post("/v1/continue_next", include_in_schema=True)
 async def continue_session_next(request: ConversationRequest) -> ConversationResponse:
     user_virtual_id = request.user_virtual_id
     user_session_id, user_learning_language, user_conversation_language = validate_user(user_virtual_id)
