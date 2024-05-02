@@ -523,23 +523,14 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
         completed_contents = list(completed_contents)
         logger.debug({"user_virtual_id": user_virtual_id, "updated_completed_contents": completed_contents})
         store_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents", json.dumps(completed_contents))
-
     learning_next_content_message = None
+    learning_next_content_message_list = learning_next_content_msg[user_conversation_language]
     completed_contents = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_completed_contents")
     logger.debug({"user_virtual_id": user_virtual_id, "completed_contents": completed_contents})
     if completed_contents:
         completed_contents = json.loads(completed_contents)
         if len(completed_contents) % 3 == 0:
-            learning_next_content_message = random.choice(learning_next_content_msg)
-            if user_conversation_language != "en":
-                try:
-                    # convert message into conversation language
-                    tts_resp = process_outgoing_voice(learning_next_content_message, user_conversation_language)
-                    logger.debug({"user_virtual_id": user_virtual_id, "tts_response": tts_resp})
-                    learning_next_content_message = tts_resp["audio"]
-                    logger.info({"user_virtual_id": user_virtual_id, "learning_next_content_message": learning_next_content_message})
-                except Exception as e:
-                    logger.info({"user_virtual_id": user_virtual_id, "error": e})
+            learning_next_content_message = random.choice(learning_next_content_message_list)
 
     content_response = fetch_content(user_virtual_id, user_milestone_level, user_learning_phase, user_learning_language, user_session_id, phase_session_id)
 
