@@ -84,6 +84,7 @@ discovery_start_msg = json.loads(get_config_value("conversation_messages", "disc
 practice_start_msg = json.loads(get_config_value("conversation_messages", "practice_phase_message", None))
 showcase_start_msg = json.loads(get_config_value("conversation_messages", "showcase_phase_message", None))
 learning_next_content_msg = json.loads(get_config_value("conversation_messages", "learning_next_content_message", None))
+system_not_available_msg = json.loads(get_config_value("conversation_messages", "system_not_available_message", None))
 
 headers = {'Content-Type': 'application/json'}
 
@@ -365,29 +366,35 @@ async def welcome_conversation_next(request: ConversationRequest) -> Conversatio
     audio = request.user_audio_msg
     if not is_url(audio) and not is_base64(audio):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid audio input!")
-
-    user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
-    logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
-    # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotion_category = emotions_classifier("welcome", user_virtual_id, user_statement, user_session_id, user_learning_language)
-    emotion_summary = emotions_summary(emotion_category)
-    # classify welcome_user_resp intent into 'greeting' and 'other'
-    user_intent = invoke_llm(user_virtual_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
-    if user_intent:
-        user_intent = user_intent.lower().replace("\'", "")
-    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_statement": user_statement, "welcome_msg_classifier_prompt": welcome_msg_classifier_prompt, "user_intent": user_intent, "emotion_summary": emotion_summary})
-    # Based on the intent, return response
-    if user_intent == "greeting" and emotion_summary == "positive":
-        return_welcome_intent_msg = greeting_positive_resp_msg[user_conversation_language]
-    elif user_intent == "other" and emotion_summary == "positive":
-        return_welcome_intent_msg = non_greeting_positive_resp_msg[user_conversation_language]
-    elif user_intent == "greeting" and emotion_summary == "other":
-        return_welcome_intent_msg = greeting_other_resp_msg[user_conversation_language]
-    else:
-        return_welcome_intent_msg = non_greeting_other_resp_msg[user_conversation_language]
+    state = 0
+    try:
+        user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
+        logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
+        # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
+        emotion_category = emotions_classifier("welcome", user_virtual_id, user_statement, user_session_id, user_learning_language)
+        emotion_summary = emotions_summary(emotion_category)
+        # classify welcome_user_resp intent into 'greeting' and 'other'
+        user_intent = invoke_llm(user_virtual_id, user_statement, welcome_msg_classifier_prompt, user_session_id, user_learning_language)
+        if user_intent:
+            user_intent = user_intent.lower().replace("\'", "")
+        logger.info(
+            {"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_statement": user_statement, "welcome_msg_classifier_prompt": welcome_msg_classifier_prompt, "user_intent": user_intent, "emotion_summary": emotion_summary})
+        # Based on the intent, return response
+        if user_intent == "greeting" and emotion_summary == "positive":
+            return_welcome_intent_msg = greeting_positive_resp_msg[user_conversation_language]
+        elif user_intent == "other" and emotion_summary == "positive":
+            return_welcome_intent_msg = non_greeting_positive_resp_msg[user_conversation_language]
+        elif user_intent == "greeting" and emotion_summary == "other":
+            return_welcome_intent_msg = greeting_other_resp_msg[user_conversation_language]
+        else:
+            return_welcome_intent_msg = non_greeting_other_resp_msg[user_conversation_language]
+    except Exception as e:
+        logger.error(f"Exception while translating audio or invoking llm: {e}", exc_info=True)
+        return_welcome_intent_msg = system_not_available_msg[user_conversation_language]
+        state = -1
 
     logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_welcome_intent_msg": return_welcome_intent_msg})
-    return ConversationResponse(conversation=BotResponse(audio=return_welcome_intent_msg, state=0))
+    return ConversationResponse(conversation=BotResponse(audio=return_welcome_intent_msg, state=state))
 
 
 @app.post("/v1/learning_start", include_in_schema=True)
@@ -446,7 +453,8 @@ async def learning_conversation_next(request: LearningNextRequest) -> LearningRe
     phase_session_id = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_learning_phase + "_sub_session")
     in_progress_collection_category = retrieve_data(user_virtual_id + "_" + user_learning_language + "_" + user_milestone_level + "_" + user_learning_phase + "_progress_collection_category")
 
-    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "phase_session_id": phase_session_id, "in_progress_collection_category": in_progress_collection_category})
+    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "phase_session_id": phase_session_id,
+                 "in_progress_collection_category": in_progress_collection_category})
 
     # Submit user response if the phase is not 'practice'
     if user_learning_phase != "practice":
@@ -541,28 +549,35 @@ async def feedback_conversation_next(request: ConversationRequest) -> Conversati
     if not is_url(audio) and not is_base64(audio):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid audio input!")
 
-    user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
-    logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
-    # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
-    emotion_category = emotions_classifier("feedbck", user_virtual_id, user_statement, user_session_id, user_learning_language)
-    emotion_summary = emotions_summary(emotion_category)
-    # classify welcome_user_resp intent into 'greeting' and 'other'
-    user_intent = invoke_llm(user_virtual_id, user_statement, feedback_msg_classifier_prompt, user_session_id, user_learning_language)
-    if user_intent:
-        user_intent = user_intent.lower().replace("\'", "")
-    logger.info({"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_statement": user_statement, "feedback_msg_classifier_prompt": feedback_msg_classifier_prompt, "user_intent": user_intent, "emotion_summary": emotion_summary})
-    # Based on the intent, return response
-    if user_intent == "feedback" and emotion_summary == "positive":
-        return_feedback_intent_msg = feedback_positive_resp_msg[user_conversation_language]
-    elif user_intent == "feedback" and emotion_summary == "other":
-        return_feedback_intent_msg = feedback_other_resp_msg[user_conversation_language]
-    elif user_intent == "other" and emotion_summary == "positive":
-        return_feedback_intent_msg = non_feedback_positive_resp_msg[user_conversation_language]
-    else:
-        return_feedback_intent_msg = non_feedback_other_resp_msg[user_conversation_language]
+    state = 0
+    try:
+        user_statement_reg, user_statement, error_message = process_incoming_voice(audio, user_conversation_language)
+        logger.info({"user_virtual_id": user_virtual_id, "audio_converted_eng_text:": user_statement})
+        # classify welcome_user_resp emotion into ['Excited', 'Happy', 'Curious', 'Bored', 'Confused', 'Angry', 'Sad']
+        emotion_category = emotions_classifier("feedbck", user_virtual_id, user_statement, user_session_id, user_learning_language)
+        emotion_summary = emotions_summary(emotion_category)
+        # classify welcome_user_resp intent into 'greeting' and 'other'
+        user_intent = invoke_llm(user_virtual_id, user_statement, feedback_msg_classifier_prompt, user_session_id, user_learning_language)
+        if user_intent:
+            user_intent = user_intent.lower().replace("\'", "")
+        logger.info(
+            {"user_virtual_id": user_virtual_id, "user_session_id": user_session_id, "user_statement": user_statement, "feedback_msg_classifier_prompt": feedback_msg_classifier_prompt, "user_intent": user_intent, "emotion_summary": emotion_summary})
+        # Based on the intent, return response
+        if user_intent == "feedback" and emotion_summary == "positive":
+            return_feedback_intent_msg = feedback_positive_resp_msg[user_conversation_language]
+        elif user_intent == "feedback" and emotion_summary == "other":
+            return_feedback_intent_msg = feedback_other_resp_msg[user_conversation_language]
+        elif user_intent == "other" and emotion_summary == "positive":
+            return_feedback_intent_msg = non_feedback_positive_resp_msg[user_conversation_language]
+        else:
+            return_feedback_intent_msg = non_feedback_other_resp_msg[user_conversation_language]
+    except Exception as e:
+        logger.error(f"Exception while translating audio or invoking llm: {e}", exc_info=True)
+        return_feedback_intent_msg = system_not_available_msg[user_conversation_language]
+        state = -1
 
     logger.info({"user_virtual_id": user_virtual_id, "x_session_id": user_session_id, "return_feedback_intent_msg": return_feedback_intent_msg})
-    return ConversationResponse(conversation=BotResponse(audio=return_feedback_intent_msg, state=0))
+    return ConversationResponse(conversation=BotResponse(audio=return_feedback_intent_msg, state=state))
 
 
 @app.post("/v1/conclusion", include_in_schema=True)
@@ -602,7 +617,8 @@ def fetch_content(user_virtual_id: str, user_milestone_level: str, user_learning
 
 def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_learning_phase: str, user_learning_language: str, user_session_id: str, phase_session_id: str, in_progress_collection: str,
                         in_progress_collection_category: str) -> ContentResponse:
-    logger.debug({"user_virtual_id": user_virtual_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "user_learning_language": user_learning_language, "user_session_id": user_session_id, "phase_session_id": phase_session_id, "in_progress_collection": in_progress_collection, "in_progress_collection_category": in_progress_collection_category})
+    logger.debug({"user_virtual_id": user_virtual_id, "user_milestone_level": user_milestone_level, "user_learning_phase": user_learning_phase, "user_learning_language": user_learning_language, "user_session_id": user_session_id,
+                  "phase_session_id": phase_session_id, "in_progress_collection": in_progress_collection, "in_progress_collection_category": in_progress_collection_category})
     if user_learning_phase == "discovery":
         get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
             {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
