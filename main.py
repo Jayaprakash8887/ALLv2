@@ -306,11 +306,11 @@ async def user_login(request: LoginRequest) -> LoginResponse:
 
     logger.info({"user_id": user_id, "password": password, "conversation_language": conversation_language, "learning_language": learning_language})
 
-    user_virtual_id_resp = requests.request("GET", learner_ai_base_url + generate_virtual_id_api, params={"username": user_id, "password": password})
+    user_virtual_id_resp = requests.request("POST", learner_ai_base_url + generate_virtual_id_api + "?username=" + user_id, headers=headers, data=json.dumps({}))
     if user_virtual_id_resp.status_code != 200 and user_virtual_id_resp.status_code != 201:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User virtual id generation failed!")
 
-    user_virtual_id = str(json.loads(user_virtual_id_resp.text)["virtualID"])
+    user_virtual_id = str(json.loads(user_virtual_id_resp.text)["result"]["virtualID"])
     store_data(user_virtual_id, user_id)
     store_data(user_virtual_id + "_learning_language", learning_language)
     store_data(user_virtual_id + "_conversation_language", conversation_language)
@@ -676,12 +676,16 @@ def shift_to_next_phase(user_virtual_id: str, user_milestone_level: str, user_le
     if user_learning_phase == "discovery":
         get_set_result_resp = requests.request("POST", learner_ai_base_url + get_result_api, headers=headers, data=json.dumps(
             {"sub_session_id": phase_session_id, "contentType": in_progress_collection_category, "session_id": user_session_id, "user_id": user_virtual_id, "collectionId": in_progress_collection, "language": user_learning_language}))
-        logger.info({"user_virtual_id": user_virtual_id, "get_set_result_resp": get_set_result_resp})
+        logger.info({"user_virtual_id": user_virtual_id, "get_set_result_resp": get_set_result_resp.json()})
 
-        if get_set_result_resp.status_code != 200 and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
+       #  if get_set_result_resp.status_code != 200 and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
+        if (get_set_result_resp.status_code != 200 or get_set_result_resp.status_code != 201) and get_set_result_resp and get_set_result_resp.json()["status"] != "success":
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Get result API failed!")
 
-        user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
+        try:
+            user_milestone_level = get_set_result_resp.json()["data"]["currentLevel"]
+        except Exception as e:
+            logger.error({"user_virtual_id": user_virtual_id, "error": e})    
         store_data(user_virtual_id + "_" + user_learning_language + "_milestone_level", user_milestone_level)
         session_result = get_set_result_resp.json()["data"]["sessionResult"]
         logger.debug({"user_virtual_id": user_virtual_id, "user_milestone_level": user_milestone_level, "session_result": session_result})
